@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: inklings-postgres
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-inklings_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inklings_prod_password}
@@ -22,6 +24,8 @@ services:
   api:
     image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
     container_name: inklings-api
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-inklings_user}:${POSTGRES_PASSWORD:-inklings_prod_password}@postgres:5432/${POSTGRES_DB:-inklings_db}
       SERVER_HOST: 0.0.0.0
