@@ -22,7 +22,7 @@ RUN mkdir src && \
 
 # Build dependencies (cached layer)
 RUN cargo build --release && \
-    rm -rf src migration/src target/release/inklings-server*
+    rm -rf src migration/src target/release/deps/inklings*
 
 # Copy source code
 COPY src ./src
