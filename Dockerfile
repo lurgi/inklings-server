@@ -1,7 +1,13 @@
-# Build stage
-FROM rust:latest AS builder
-
+# Stage 1: Prepare recipe (dependency analysis)
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 WORKDIR /app
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 2: Build dependencies
+FROM chef AS builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -9,29 +15,15 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy manifest files
-COPY Cargo.toml Cargo.lock ./
-COPY migration/Cargo.toml ./migration/
+# Build dependencies - this layer is cached
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-# Create dummy main.rs to cache dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    mkdir -p migration/src && \
-    echo "fn main() {}" > migration/src/main.rs && \
-    echo "fn main() {}" > migration/src/lib.rs
-
-# Build dependencies (cached layer)
-RUN cargo build --release && \
-    rm -rf src migration/src target/release/deps/inklings*
-
-# Copy source code
-COPY src ./src
-COPY migration/src ./migration/src
-
-# Build application
+# Stage 3: Build application
+COPY . .
 RUN cargo build --release
 
-# Runtime stage
+# Stage 4: Runtime
 FROM debian:bookworm-slim
 
 WORKDIR /app

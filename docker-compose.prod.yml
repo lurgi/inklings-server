@@ -8,8 +8,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-inklings_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inklings_prod_password}
       POSTGRES_DB: ${POSTGRES_DB:-inklings_db}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
