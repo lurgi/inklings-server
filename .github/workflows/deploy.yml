@@ -14,7 +14,78 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t inklings-server:test .
+          echo "✅ Docker image built successfully"
+
+      - name: Test container with PostgreSQL
+        run: |
+          docker run -d --name test-container \
+            --network host \
+            -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
+            -e SERVER_HOST=127.0.0.1 \
+            -e SERVER_PORT=8080 \
+            -e RUST_LOG=info \
+            inklings-server:test
+
+          echo "Waiting for server to start..."
+          sleep 10
+
+          echo "=== Container Logs ==="
+          docker logs test-container
+
+          if docker ps | grep test-container | grep -q "Up"; then
+            echo "✅ Container is running"
+          else
+            echo "❌ Container failed"
+            docker logs test-container
+            exit 1
+          fi
+
+      - name: Test health endpoint
+        run: |
+          response=$(curl -s http://localhost:8080/ || echo "failed")
+          echo "Response: $response"
+
+          if echo "$response" | grep -q "ok"; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            docker logs test-container
+            exit 1
+          fi
+
+      - name: Cleanup test
+        if: always()
+        run: |
+          docker stop test-container || true
+          docker rm test-container || true
+
   deploy:
+    needs: test  # ✅ 테스트 통과해야만 배포
     runs-on: ubuntu-latest
 
     steps:
