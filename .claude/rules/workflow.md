@@ -53,7 +53,7 @@
    - 피드백 받기 및 수정
 
 5. **개발자가 직접 실행**
-   - `sea-orm-cli migrate up` 실행은 **개발자가 직접** 수행
+   - `cargo run -p migration up` 실행은 **개발자가 직접** 수행
    - Claude는 실행하지 않음
 
 **✅ 체크포인트**: Entity + Migration 완료, DB 스키마 생성 확인
