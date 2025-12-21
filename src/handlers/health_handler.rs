@@ -1,7 +1,6 @@
+use super::AppState;
 use axum::{extract::State, http::StatusCode, Json};
-use sea_orm::DatabaseConnection;
 use serde::Serialize;
-use std::sync::Arc;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
@@ -9,10 +8,8 @@ pub struct HealthResponse {
     pub database: String,
 }
 
-pub async fn health_check(
-    State(db): State<Arc<DatabaseConnection>>,
-) -> (StatusCode, Json<HealthResponse>) {
-    let db_status = match db.ping().await {
+pub async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<HealthResponse>) {
+    let db_status = match state.db.ping().await {
         Ok(_) => "connected",
         Err(_) => "disconnected",
     };
