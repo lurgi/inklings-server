@@ -17,12 +17,12 @@ async fn setup_test_db() -> (Arc<DatabaseConnection>, i32) {
     let unique_id = format!("{}_{}", timestamp, random);
 
     let new_user = user::ActiveModel {
+        id: NotSet,
         username: Set(format!("test_user_{}", unique_id)),
         email: Set(format!("test_{}@example.com", unique_id)),
         password_hash: Set("test_hash".to_string()),
         created_at: Set(now),
         updated_at: Set(now),
-        ..Default::default()
     };
     let user_id = new_user.insert(db.as_ref()).await.unwrap().id;
 
