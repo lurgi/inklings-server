@@ -76,10 +76,55 @@ paths: src/**/*_test.rs, tests/**/*.rs
 
 ---
 
-### Handler 테스트
-- **기본적으로 작성하지 않음**
-- Service 테스트로 비즈니스 로직 커버
-- 필요시 통합 테스트만 작성
+### Handler 테스트 (인-프로세스 통합 테스트)
+
+- **원칙**: 핸들러 테스트는 Service의 비즈니스 로직을 다시 검증하는 것이 아니라, **API 명세(Spec)가 올바르게 작동하는지** 검증하는 데 중점을 둡니다. 이는 통합 테스트의 일종으로, `tests/` 디렉토리에 위치합니다.
+  - API 엔드포인트 라우팅 (Routing)
+  - 요청/응답의 직렬화/역직렬화 (Serialization/Deserialization)
+  - 예상된 HTTP 상태 코드 반환
+  - 권한 부여 로직 (Authorization) 확인 (예: 다른 유저의 리소스 접근 차단)
+
+- **테스트 방법**: `tower::util::ServiceExt`의 `oneshot`을 사용하여, 메모리 상에서 라우터에 직접 가상의 HTTP 요청을 보내는 '인-프로세스(in-process)' 방식으로 작성합니다.
+
+**좋은 예시 (`tests/memo_api.rs`):**
+```rust
+#[tokio::test]
+async fn test_create_memo_api() {
+    let (app, db) = setup().await;
+    let user = create_test_user(&db, 1, "user1").await;
+
+    let req_body = CreateMemoRequest {
+        content: "Test memo from integration test".to_string(),
+    };
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/api/memos")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .header("X-User-Id", user.id.to_string())
+                .body(Body::from(serde_json::to_string(&req_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let memo_res: MemoResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(memo_res.content, req_body.content);
+    assert_eq!(memo_res.user_id, user.id);
+}
+```
+
+**나쁜 예시:**
+```rust
+// 핸들러 테스트 내에서 복잡한 비즈니스 로직 자체(예: 포인트 계산)를 다시 검증하려는 경우.
+// (이러한 로직은 Service 테스트에서 이미 검증되었어야 합니다.)
+```
 
 ---
 
