@@ -33,3 +33,6 @@ chrono = { version = "0.4", features = ["serde"] }
 axum = "0.7"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+[dev-dependencies]
+rand = "0.8"
