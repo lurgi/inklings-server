@@ -1,7 +1,10 @@
 mod db;
 mod entities;
+mod errors;
 mod handlers;
+mod models;
 mod repositories;
+mod services;
 
 use anyhow::Result;
 use std::{env::var, sync::Arc};
