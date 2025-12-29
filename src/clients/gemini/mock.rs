@@ -1,5 +1,5 @@
 use super::traits::{Embedder, TextGenerator};
-use crate::errors::ServiceError;
+use crate::clients::ClientError;
 
 #[derive(Clone)]
 pub struct MockGeminiClient {
@@ -22,7 +22,7 @@ impl Default for MockGeminiClient {
 
 #[async_trait::async_trait]
 impl Embedder for MockGeminiClient {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>, ServiceError> {
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, ClientError> {
         let hash = text.len() as f32;
         let vector: Vec<f32> = (0..self.embedding_dimension)
             .map(|i| (hash + i as f32) / 1000.0)
@@ -42,7 +42,7 @@ impl TextGenerator for MockGeminiClient {
         &self,
         prompt: &str,
         context: Vec<String>,
-    ) -> Result<String, ServiceError> {
+    ) -> Result<String, ClientError> {
         let mut result = format!("AI 제안 (prompt: {})\n\n", prompt);
 
         if !context.is_empty() {

@@ -1,5 +1,5 @@
 use super::traits::{Embedder, TextGenerator};
-use crate::errors::ServiceError;
+use crate::clients::ClientError;
 use serde::{Deserialize, Serialize};
 
 const EMBEDDING_API_URL: &str =
@@ -49,7 +49,7 @@ struct Embedding {
 
 #[async_trait::async_trait]
 impl Embedder for GeminiClient {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>, ServiceError> {
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, ClientError> {
         let request_body = EmbedRequest {
             content: Content {
                 parts: vec![Part {
@@ -64,7 +64,7 @@ impl Embedder for GeminiClient {
             .json(&request_body)
             .send()
             .await
-            .map_err(|e| ServiceError::GeminiApi(format!("Failed to send request: {}", e)))?;
+            .map_err(|e| ClientError::Network(format!("Failed to send request: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -72,14 +72,14 @@ impl Embedder for GeminiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ServiceError::GeminiApi(format!(
+            return Err(ClientError::GeminiApi(format!(
                 "API request failed with status {}: {}",
                 status, error_text
             )));
         }
 
         let embed_response: EmbedResponse = response.json().await.map_err(|e| {
-            ServiceError::GeminiApi(format!("Failed to parse response: {}", e))
+            ClientError::ParseError(format!("Failed to parse response: {}", e))
         })?;
 
         Ok(embed_response.embedding.values)
@@ -126,7 +126,7 @@ impl TextGenerator for GeminiClient {
         &self,
         prompt: &str,
         context: Vec<String>,
-    ) -> Result<String, ServiceError> {
+    ) -> Result<String, ClientError> {
         let mut prompt_text = String::from("다음은 사용자가 과거에 작성한 메모들입니다:\n\n");
 
         for (i, memo) in context.iter().enumerate() {
@@ -152,7 +152,7 @@ impl TextGenerator for GeminiClient {
             .json(&request_body)
             .send()
             .await
-            .map_err(|e| ServiceError::GeminiApi(format!("Failed to send request: {}", e)))?;
+            .map_err(|e| ClientError::Network(format!("Failed to send request: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -160,14 +160,14 @@ impl TextGenerator for GeminiClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ServiceError::GeminiApi(format!(
+            return Err(ClientError::GeminiApi(format!(
                 "API request failed with status {}: {}",
                 status, error_text
             )));
         }
 
         let generate_response: GenerateResponse = response.json().await.map_err(|e| {
-            ServiceError::GeminiApi(format!("Failed to parse response: {}", e))
+            ClientError::ParseError(format!("Failed to parse response: {}", e))
         })?;
 
         let text = generate_response
@@ -175,7 +175,7 @@ impl TextGenerator for GeminiClient {
             .first()
             .and_then(|c| c.content.parts.first())
             .map(|p| p.text.clone())
-            .ok_or_else(|| ServiceError::GeminiApi("No response generated".to_string()))?;
+            .ok_or_else(|| ClientError::GeminiApi("No response generated".to_string()))?;
 
         Ok(text)
     }

@@ -1,8 +1,8 @@
-use crate::errors::ServiceError;
+use crate::clients::ClientError;
 
 #[async_trait::async_trait]
 pub trait Embedder: Send + Sync {
-    async fn embed(&self, text: &str) -> Result<Vec<f32>, ServiceError>;
+    async fn embed(&self, text: &str) -> Result<Vec<f32>, ClientError>;
     fn dimension(&self) -> usize;
 }
 
@@ -12,5 +12,5 @@ pub trait TextGenerator: Send + Sync {
         &self,
         prompt: &str,
         context: Vec<String>,
-    ) -> Result<String, ServiceError>;
+    ) -> Result<String, ClientError>;
 }

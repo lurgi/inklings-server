@@ -6,6 +6,8 @@ use axum::{
 use sea_orm::DbErr;
 use thiserror::Error;
 
+use crate::clients::ClientError;
+
 #[derive(Debug, Error)]
 pub enum ServiceError {
     #[error("Memo not found")]
@@ -48,5 +50,16 @@ impl IntoResponse for ServiceError {
         };
 
         (status, Json(serde_json::json!({ "error": message }))).into_response()
+    }
+}
+
+impl From<ClientError> for ServiceError {
+    fn from(err: ClientError) -> Self {
+        match err {
+            ClientError::GeminiApi(msg) => ServiceError::GeminiApi(msg),
+            ClientError::Network(msg) => ServiceError::GeminiApi(msg),
+            ClientError::ParseError(msg) => ServiceError::GeminiApi(msg),
+            ClientError::Qdrant(msg) => ServiceError::Qdrant(msg),
+        }
     }
 }
