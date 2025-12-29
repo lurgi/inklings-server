@@ -1,4 +1,4 @@
-// 모듈들을 라이브러리의 공개 API로 만듭니다.
+pub mod clients;
 pub mod db;
 pub mod entities;
 pub mod errors;
@@ -11,7 +11,6 @@ use anyhow::Result;
 use std::{env::var, sync::Arc};
 use tracing::info;
 
-// 서버 실행 로직을 `run` 함수로 분리합니다.
 pub async fn run() -> Result<()> {
     dotenv::dotenv().ok();
     tracing_subscriber::fmt::init();
