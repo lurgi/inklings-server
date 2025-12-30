@@ -4,7 +4,7 @@ pub mod memo_handler;
 
 use crate::{
     clients::{Embedder, GeminiClient},
-    repositories::QdrantRepository,
+    repositories::QdrantRepo,
     services::memo_service::MemoService,
 };
 use axum::{
@@ -22,7 +22,7 @@ pub struct AppState {
 
 pub fn create_router(
     db: Arc<DatabaseConnection>,
-    qdrant_repo: QdrantRepository,
+    qdrant_repo: Arc<dyn QdrantRepo>,
     gemini_client: Arc<GeminiClient>,
 ) -> Router {
     let memo_service = Arc::new(MemoService::new(

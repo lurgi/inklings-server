@@ -26,9 +26,11 @@ pub async fn run() -> Result<()> {
 
     let db = Arc::new(db::create_connection(&database_url).await?);
 
-    let qdrant_repo = repositories::QdrantRepository::new(qdrant_url)
-        .await
-        .expect("Failed to initialize Qdrant repository");
+    let qdrant_repo = Arc::new(
+        repositories::QdrantRepository::new(qdrant_url)
+            .await
+            .expect("Failed to initialize Qdrant repository"),
+    );
 
     let gemini_client = Arc::new(clients::GeminiClient::new(gemini_api_key));
 

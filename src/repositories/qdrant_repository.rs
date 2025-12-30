@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use qdrant_client::{
     qdrant::{
         vectors_config::Config, CreateCollection, Distance, PointStruct, Value, VectorParams,
@@ -7,6 +8,25 @@ use qdrant_client::{
 };
 use sea_orm::DbErr;
 use std::collections::HashMap;
+
+#[async_trait]
+pub trait QdrantRepo: Send + Sync {
+    async fn upsert_memo(
+        &self,
+        memo_id: i32,
+        user_id: i32,
+        vector: Vec<f32>,
+    ) -> Result<(), DbErr>;
+
+    async fn search_similar(
+        &self,
+        user_id: i32,
+        query_vector: Vec<f32>,
+        limit: u64,
+    ) -> Result<Vec<i32>, DbErr>;
+
+    async fn delete_memo(&self, memo_id: i32) -> Result<(), DbErr>;
+}
 
 #[derive(Clone)]
 pub struct QdrantRepository {
@@ -61,8 +81,11 @@ impl QdrantRepository {
 
         Ok(())
     }
+}
 
-    pub async fn upsert_memo(
+#[async_trait]
+impl QdrantRepo for QdrantRepository {
+    async fn upsert_memo(
         &self,
         memo_id: i32,
         user_id: i32,
@@ -88,7 +111,7 @@ impl QdrantRepository {
         Ok(())
     }
 
-    pub async fn search_similar(
+    async fn search_similar(
         &self,
         user_id: i32,
         query_vector: Vec<f32>,
@@ -127,7 +150,7 @@ impl QdrantRepository {
         Ok(memo_ids)
     }
 
-    pub async fn delete_memo(&self, memo_id: i32) -> Result<(), DbErr> {
+    async fn delete_memo(&self, memo_id: i32) -> Result<(), DbErr> {
         use qdrant_client::qdrant::{
             points_selector::PointsSelectorOneOf, DeletePoints, PointsIdsList, PointsSelector,
         };

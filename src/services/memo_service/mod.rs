@@ -5,20 +5,20 @@ use crate::{
     clients::Embedder,
     errors::ServiceError,
     models::{CreateMemoRequest, MemoResponse, UpdateMemoRequest},
-    repositories::{MemoRepository, QdrantRepository},
+    repositories::{MemoRepository, QdrantRepo},
 };
 
 #[derive(Clone)]
 pub struct MemoService {
     memo_repo: MemoRepository,
-    qdrant_repo: QdrantRepository,
+    qdrant_repo: Arc<dyn QdrantRepo>,
     embedder: Arc<dyn Embedder>,
 }
 
 impl MemoService {
     pub fn new(
         db: Arc<DatabaseConnection>,
-        qdrant_repo: QdrantRepository,
+        qdrant_repo: Arc<dyn QdrantRepo>,
         embedder: Arc<dyn Embedder>,
     ) -> Self {
         Self {
