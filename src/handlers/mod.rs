@@ -2,7 +2,11 @@ pub mod auth;
 pub mod health_handler;
 pub mod memo_handler;
 
-use crate::services::memo_service::MemoService;
+use crate::{
+    clients::{Embedder, GeminiClient},
+    repositories::QdrantRepository,
+    services::memo_service::MemoService,
+};
 use axum::{
     routing::{delete, get, patch, post, put},
     Router,
@@ -16,8 +20,16 @@ pub struct AppState {
     pub memo_service: Arc<MemoService>,
 }
 
-pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
-    let memo_service = Arc::new(MemoService::new(db.clone()));
+pub fn create_router(
+    db: Arc<DatabaseConnection>,
+    qdrant_repo: QdrantRepository,
+    gemini_client: Arc<GeminiClient>,
+) -> Router {
+    let memo_service = Arc::new(MemoService::new(
+        db.clone(),
+        qdrant_repo,
+        gemini_client as Arc<dyn Embedder>,
+    ));
 
     let app_state = AppState { db, memo_service };
 

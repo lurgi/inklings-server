@@ -2,20 +2,29 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::{
+    clients::Embedder,
     errors::ServiceError,
     models::{CreateMemoRequest, MemoResponse, UpdateMemoRequest},
-    repositories::MemoRepository,
+    repositories::{MemoRepository, QdrantRepository},
 };
 
 #[derive(Clone)]
 pub struct MemoService {
     memo_repo: MemoRepository,
+    qdrant_repo: QdrantRepository,
+    embedder: Arc<dyn Embedder>,
 }
 
 impl MemoService {
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    pub fn new(
+        db: Arc<DatabaseConnection>,
+        qdrant_repo: QdrantRepository,
+        embedder: Arc<dyn Embedder>,
+    ) -> Self {
         Self {
             memo_repo: MemoRepository::new(db),
+            qdrant_repo,
+            embedder,
         }
     }
 
@@ -24,7 +33,13 @@ impl MemoService {
         user_id: i32,
         req: CreateMemoRequest,
     ) -> Result<MemoResponse, ServiceError> {
-        let memo = self.memo_repo.create(user_id, req.content).await?;
+        let memo = self.memo_repo.create(user_id, req.content.clone()).await?;
+
+        let vector = self.embedder.embed(&req.content).await?;
+        self.qdrant_repo
+            .upsert_memo(memo.id, user_id, vector)
+            .await?;
+
         Ok(MemoResponse::from(memo))
     }
 
@@ -63,7 +78,13 @@ impl MemoService {
             return Err(ServiceError::Unauthorized);
         }
 
-        let updated_memo = self.memo_repo.update(memo_id, req.content).await?;
+        let updated_memo = self.memo_repo.update(memo_id, req.content.clone()).await?;
+
+        let vector = self.embedder.embed(&req.content).await?;
+        self.qdrant_repo
+            .upsert_memo(memo_id, user_id, vector)
+            .await?;
+
         Ok(MemoResponse::from(updated_memo))
     }
 
@@ -79,6 +100,8 @@ impl MemoService {
         }
 
         self.memo_repo.delete(memo_id).await?;
+        self.qdrant_repo.delete_memo(memo_id).await?;
+
         Ok(())
     }
 

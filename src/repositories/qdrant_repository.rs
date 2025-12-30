@@ -8,6 +8,7 @@ use qdrant_client::{
 use sea_orm::DbErr;
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct QdrantRepository {
     client: Qdrant,
     collection_name: String,
