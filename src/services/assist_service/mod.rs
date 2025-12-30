@@ -70,3 +70,6 @@ impl AssistService {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;
