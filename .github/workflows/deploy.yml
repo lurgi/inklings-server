@@ -36,16 +36,64 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: |
-          docker build -t inklings-server:test .
-          echo "✅ Docker image built successfully"
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Test container with PostgreSQL
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_db
+        run: |
+          echo "🔄 Running database migrations..."
+          cargo run -p migration up
+          echo "✅ Migrations completed"
+
+      - name: Run tests
+        env:
+          DATABASE_URL_TEST: postgres://test_user:test_pass@localhost:5432/test_db
+          QDRANT_URL: http://mock:6334
+          GEMINI_API_KEY: mock-key
+        run: cargo test --all-features
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: inklings-server:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Start Qdrant for integration test
+        run: |
+          docker run -d --name qdrant-test \
+            -p 6334:6334 \
+            -p 6333:6333 \
+            qdrant/qdrant:latest
+
+          echo "Waiting for Qdrant to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:6333/health > /dev/null 2>&1; then
+              echo "✅ Qdrant is ready"
+              break
+            fi
+            echo "Waiting for Qdrant... ($i/30)"
+            sleep 1
+          done
+
+      - name: Test container startup
         run: |
           docker run -d --name test-container \
             --network host \
             -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
+            -e QDRANT_URL=http://localhost:6334 \
+            -e GEMINI_API_KEY=test-api-key \
             -e SERVER_HOST=127.0.0.1 \
             -e SERVER_PORT=8080 \
             -e RUST_LOG=info \
@@ -67,22 +115,29 @@ jobs:
 
       - name: Test health endpoint
         run: |
-          response=$(curl -s http://localhost:8080/api/health || echo "failed")
-          echo "Response: $response"
+          echo "Testing health endpoint..."
+          for i in {1..10}; do
+            response=$(curl -s http://localhost:8080/api/health || echo "failed")
+            if echo "$response" | grep -q "ok"; then
+              echo "✅ Health check passed"
+              echo "Response: $response"
+              exit 0
+            fi
+            echo "Attempt $i/10 failed, retrying..."
+            sleep 2
+          done
 
-          if echo "$response" | grep -q "ok"; then
-            echo "✅ Health check passed"
-          else
-            echo "❌ Health check failed"
-            docker logs test-container
-            exit 1
-          fi
+          echo "❌ Health check failed"
+          docker logs test-container
+          exit 1
 
       - name: Cleanup test
         if: always()
         run: |
           docker stop test-container || true
           docker rm test-container || true
+          docker stop qdrant-test || true
+          docker rm qdrant-test || true
 
   deploy:
     needs: test  # ✅ 테스트 통과해야만 배포
@@ -102,28 +157,528 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      - name: Validate EC2 environment
+        run: |
+          echo "🔍 Validating EC2 environment variables..."
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "echo \"Checking required files and environment variables...\"",
+              "cd /home/ubuntu/inklings-server || { echo \"❌ Project directory not found\"; exit 1; }",
+              "echo \"✅ Project directory exists\"",
+              "",
+              "if [ ! -f .env ]; then",
+              "  echo \"❌ .env file not found\"",
+              "  exit 1",
+              "fi",
+              "echo \"✅ .env file exists\"",
+              "",
+              "echo \"Checking required environment variables...\"",
+              "missing_vars=\"\"",
+              "",
+              "check_var() {",
+              "  if ! grep -q \"^$1=\" .env; then",
+              "    echo \"❌ Missing: $1\"",
+              "    missing_vars=\"$missing_vars $1\"",
+              "    return 1",
+              "  else",
+              "    echo \"✅ Found: $1\"",
+              "    return 0",
+              "  fi",
+              "}",
+              "",
+              "check_var \"GEMINI_API_KEY\"",
+              "check_var \"QDRANT_URL\"",
+              "check_var \"POSTGRES_USER\"",
+              "check_var \"POSTGRES_PASSWORD\"",
+              "check_var \"POSTGRES_DB\"",
+              "",
+              "if [ -n \"$missing_vars\" ]; then",
+              "  echo \"\"",
+              "  echo \"❌ Validation failed: Missing environment variables:$missing_vars\"",
+              "  echo \"Please add them to /home/ubuntu/inklings-server/.env\"",
+              "  exit 1",
+              "fi",
+              "",
+              "echo \"\"",
+              "echo \"✅ All required environment variables are set\"",
+              "",
+              "if [ ! -f docker-compose.prod.yml ]; then",
+              "  echo \"❌ docker-compose.prod.yml not found\"",
+              "  exit 1",
+              "fi",
+              "echo \"✅ docker-compose.prod.yml exists\"",
+              "",
+              "echo \"\"",
+              "echo \"🎉 Environment validation passed!\""
+            ]' \
+            --comment "Validate EC2 environment" \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          echo "📝 Validation Command ID: $COMMAND_ID"
+
+          # 명령 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }}
+
+          # 결과 확인
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Status' \
+            --output text)
+
+          # 로그 출력
+          echo "📄 Validation results:"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo ""
+            echo "❌ Environment validation failed"
+            echo "Error details:"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'StandardErrorContent' \
+              --output text
+            echo ""
+            echo "🛠️  To fix:"
+            echo "  1. SSH into EC2: ssh ec2-user@your-instance"
+            echo "  2. Edit .env: cd /home/ubuntu/inklings-server && nano .env"
+            echo "  3. Add missing variables"
+            echo "  4. Re-run this workflow"
+            exit 1
+          fi
+
+          echo "✅ Environment validation completed successfully!"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image with cache
+        uses: docker/build-push-action@v5
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Deploy to EC2 via SSM
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Save current image tag
+        id: save-current-image
         run: |
-          aws ssm send-command \
+          echo "💾 Saving current running image for potential rollback..."
+
+          COMMAND_ID=$(aws ssm send-command \
             --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
               "cd /home/ubuntu/inklings-server",
-              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}",
-              "docker pull ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest",
-              "docker compose -f docker-compose.prod.yml down || true",
-              "docker compose -f docker-compose.prod.yml up -d"
+              "docker compose -f docker-compose.prod.yml images api --format json | jq -r \".[0].Repository + \\\":\\\" + .[0].Tag\" || echo \"none\""
             ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          # 명령 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
             --region ${{ env.AWS_REGION }}
+
+          # 현재 이미지 태그 추출
+          CURRENT_IMAGE=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text | tr -d '\n')
+
+          echo "Current image: $CURRENT_IMAGE"
+          echo "ROLLBACK_IMAGE=$CURRENT_IMAGE" >> $GITHUB_ENV
+
+          if [ "$CURRENT_IMAGE" = "none" ]; then
+            echo "⚠️  No existing image found (first deployment?)"
+          else
+            echo "✅ Saved current image for rollback: $CURRENT_IMAGE"
+          fi
+
+      - name: Deploy to EC2 via SSM
+        id: deploy
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "🚀 Starting deployment to EC2..."
+
+          # SSM 명령 실행 및 Command ID 저장
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "echo \"📁 Navigating to project directory...\"",
+              "cd /home/ubuntu/inklings-server || { echo \"❌ Failed to cd\"; exit 1; }",
+              "echo \"🔐 Logging in to ECR...\"",
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} || { echo \"❌ ECR login failed\"; exit 1; }",
+              "echo \"⬇️  Pulling latest Docker image...\"",
+              "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest || { echo \"❌ Docker pull failed\"; exit 1; }",
+              "echo \"🔄 Running database migrations (backward compatible)...\"",
+              "docker compose -f docker-compose.prod.yml run --rm api sh -c \\"cd /app && cargo run -p migration up\\" || { echo \"❌ Migration failed\"; exit 1; }",
+              "echo \"✅ Migrations completed\"",
+              "echo \"🔄 Updating API containers (zero-downtime)...\"",
+              "docker compose -f docker-compose.prod.yml up -d --no-deps --build api || { echo \"❌ API update failed\"; exit 1; }",
+              "echo \"⏳ Waiting for new containers to be healthy...\"",
+              "sleep 5",
+              "echo \"✅ Rolling update completed\"",
+              "echo \"✅ Deployment commands completed\"",
+              "echo \"📊 Container status:\"",
+              "docker compose -f docker-compose.prod.yml ps"
+            ]' \
+            --comment "Deploy inklings-server:latest from GitHub Actions" \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          echo "📝 Command ID: $COMMAND_ID"
+
+          # 명령 실행 완료 대기 (최대 5분)
+          echo "⏳ Waiting for deployment to complete..."
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} || {
+              echo "❌ Deployment command timed out or failed"
+              exit 1
+            }
+
+          # 명령 실행 결과 확인
+          echo "📋 Checking command execution status..."
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Status' \
+            --output text)
+
+          echo "Status: $STATUS"
+
+          # 상세 로그 출력
+          echo "📄 Deployment logs:"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          # 실패 시 에러 로그 출력
+          if [ "$STATUS" != "Success" ]; then
+            echo "❌ Deployment failed with status: $STATUS"
+            echo "📄 Error logs:"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'StandardErrorContent' \
+              --output text
+            exit 1
+          fi
+
+          echo "✅ Deployment completed successfully!"
+
+      - name: Verify deployment health
+        run: |
+          echo "🏥 Verifying deployment health..."
+
+          # EC2에서 컨테이너 상태 확인
+          echo "📊 Step 1: Checking container status..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "cd /home/ubuntu/inklings-server",
+              "echo \"=== Container Status ===\"",
+              "docker compose -f docker-compose.prod.yml ps",
+              "echo \"\"",
+              "echo \"=== API Container Logs (last 20 lines) ===\"",
+              "docker compose -f docker-compose.prod.yml logs --tail=20 api"
+            ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          # 명령 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }}
+
+          # 결과 출력
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          echo "✅ Container status check completed"
+          echo ""
+
+          # Health endpoint 확인
+          echo "🔍 Step 2: Checking health endpoint..."
+
+          # EC2 퍼블릭 IP 동적 조회
+          echo "🔎 Fetching EC2 public IP..."
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          if [ "$PUBLIC_IP" != "None" ] && [ -n "$PUBLIC_IP" ]; then
+            echo "✅ Found public IP: $PUBLIC_IP"
+            HEALTH_URL="http://${PUBLIC_IP}:8080/api/health"
+            echo "Testing: $HEALTH_URL"
+
+            # 최대 30초 동안 10번 재시도
+            for i in {1..10}; do
+              echo "Attempt $i/10..."
+
+              HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+
+              if [ "$HTTP_CODE" = "200" ]; then
+                RESPONSE=$(curl -s "$HEALTH_URL")
+                echo "✅ External health check passed!"
+                echo "Response: $RESPONSE"
+                echo "HTTP Code: $HTTP_CODE"
+                exit 0
+              fi
+
+              echo "⚠️  Health check failed (HTTP $HTTP_CODE), retrying..."
+              sleep 3
+            done
+
+            echo "❌ External health check failed after 10 attempts"
+            echo "Falling back to internal health check..."
+          else
+            echo "⚠️  No public IP assigned to EC2 instance"
+            echo "Falling back to internal health check..."
+          fi
+
+          # EC2 내부에서 헬스체크 (Fallback)
+          echo ""
+          echo "🔍 Running health check from EC2 instance..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "echo \"Testing health endpoint...\"",
+              "for i in {1..10}; do",
+              "  response=$(curl -s http://localhost:8080/api/health || echo \"failed\")",
+              "  if echo \"$response\" | grep -q \"ok\"; then",
+              "    echo \"✅ Health check passed: $response\"",
+              "    exit 0",
+              "  fi",
+              "  echo \"Attempt $i/10 failed, retrying...\"",
+              "  sleep 2",
+              "done",
+              "echo \"❌ Health check failed after 10 attempts\"",
+              "exit 1"
+            ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          # 명령 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }}
+
+          # 상태 확인
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Status' \
+            --output text)
+
+          # 결과 출력
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "❌ Internal health check failed"
+            echo "Error logs:"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'StandardErrorContent' \
+              --output text
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All health checks passed!"
+          echo "🎉 Deployment verified successfully!"
+
+      - name: Rollback on failure
+        if: failure() && env.ROLLBACK_IMAGE != 'none' && env.ROLLBACK_IMAGE != ''
+        run: |
+          echo "⚠️  Deployment or health check failed!"
+          echo "🔄 Rolling back to previous version: ${{ env.ROLLBACK_IMAGE }}"
+
+          # 이전 이미지로 롤백
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "set -e",
+              "echo \"🔙 Starting rollback to previous version...\"",
+              "cd /home/ubuntu/inklings-server || exit 1",
+              "",
+              "echo \"📝 Current image to rollback to: ${{ env.ROLLBACK_IMAGE }}\"",
+              "",
+              "echo \"🔄 Updating docker-compose to use previous image...\"",
+              "export ROLLBACK_IMAGE=\"${{ env.ROLLBACK_IMAGE }}\"",
+              "",
+              "docker compose -f docker-compose.prod.yml down api",
+              "docker tag ${{ env.ROLLBACK_IMAGE }} ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest || echo \"⚠️  Image already exists\"",
+              "docker compose -f docker-compose.prod.yml up -d --no-deps api",
+              "",
+              "echo \"⏳ Waiting for rollback to complete...\"",
+              "sleep 10",
+              "",
+              "echo \"📊 Container status after rollback:\"",
+              "docker compose -f docker-compose.prod.yml ps",
+              "",
+              "echo \"✅ Rollback deployment completed\""
+            ]' \
+            --comment "Rollback to previous version" \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          echo "📝 Rollback Command ID: $COMMAND_ID"
+
+          # 롤백 명령 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }}
+
+          # 롤백 상태 확인
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Status' \
+            --output text)
+
+          # 로그 출력
+          echo "📄 Rollback execution logs:"
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "❌ Rollback command failed"
+            echo "Error details:"
+            aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'StandardErrorContent' \
+              --output text
+            echo ""
+            echo "🆘 CRITICAL: Rollback failed! Manual intervention required."
+            echo "SSH into the server and check container status:"
+            echo "  docker compose -f docker-compose.prod.yml ps"
+            echo "  docker compose -f docker-compose.prod.yml logs api"
+            exit 1
+          fi
+
+          # 롤백 후 Health Check
+          echo ""
+          echo "🏥 Verifying rollback health..."
+          HEALTH_COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "echo \"Testing health endpoint after rollback...\"",
+              "for i in {1..10}; do",
+              "  response=$(curl -s http://localhost:8080/api/health || echo \"failed\")",
+              "  if echo \"$response\" | grep -q \"ok\"; then",
+              "    echo \"✅ Rollback health check passed: $response\"",
+              "    exit 0",
+              "  fi",
+              "  echo \"Attempt $i/10 failed, retrying...\"",
+              "  sleep 2",
+              "done",
+              "echo \"❌ Rollback health check failed\"",
+              "exit 1"
+            ]' \
+            --region ${{ env.AWS_REGION }} \
+            --output text \
+            --query 'Command.CommandId')
+
+          # Health check 완료 대기
+          aws ssm wait command-executed \
+            --command-id "$HEALTH_COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }}
+
+          # Health check 결과
+          HEALTH_STATUS=$(aws ssm get-command-invocation \
+            --command-id "$HEALTH_COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Status' \
+            --output text)
+
+          aws ssm get-command-invocation \
+            --command-id "$HEALTH_COMMAND_ID" \
+            --instance-id ${{ secrets.EC2_INSTANCE_ID }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'StandardOutputContent' \
+            --output text
+
+          if [ "$HEALTH_STATUS" != "Success" ]; then
+            echo ""
+            echo "❌ Rollback completed but health check still failing"
+            echo "🆘 CRITICAL: Service is down. Immediate manual intervention required!"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Rollback successful! Service restored to previous version."
+          echo "⚠️  Note: Deployment failed, but rollback succeeded."
+          echo "📋 Check the deployment logs above to identify the issue."
+          exit 1  # 롤백 성공했지만 배포는 실패했으므로 exit 1

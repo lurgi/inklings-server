@@ -1,13 +1,13 @@
-name: Build and Test Docker Image
+name: Test
 
 on:
   pull_request:
     branches:
       - master
-  # push는 deploy.yml에서 처리 (test + deploy 함께 실행)
 
 jobs:
-  test:
+  # Job 1: 빠른 단위 테스트 (30초~1분)
+  unit-test:
     runs-on: ubuntu-latest
 
     services:
@@ -29,31 +29,103 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: |
-          docker build -t inklings-server:test .
-          echo "✅ Docker image built successfully"
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Test container with real PostgreSQL
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_db
         run: |
-          # 컨테이너 시작 (host network로 PostgreSQL 접근)
+          echo "🔄 Running database migrations..."
+          cargo run -p migration up
+          echo "✅ Migrations completed"
+
+      - name: Run tests
+        env:
+          DATABASE_URL_TEST: postgres://test_user:test_pass@localhost:5432/test_db
+          QDRANT_URL: http://mock:6334
+          GEMINI_API_KEY: mock-key
+        run: cargo test --all-features
+
+  # Job 2: Docker 빌드 검증 (병렬 실행, 캐싱 최적화)
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: inklings-server:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Start PostgreSQL for integration test
+        run: |
+          docker run -d --name postgres-test \
+            -e POSTGRES_USER=test_user \
+            -e POSTGRES_PASSWORD=test_pass \
+            -e POSTGRES_DB=test_db \
+            -p 5432:5432 \
+            postgres:16-alpine
+
+          # Wait for PostgreSQL
+          for i in {1..30}; do
+            if docker exec postgres-test pg_isready -U test_user > /dev/null 2>&1; then
+              echo "✅ PostgreSQL is ready"
+              break
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 1
+          done
+
+      - name: Start Qdrant for integration test
+        run: |
+          docker run -d --name qdrant-test \
+            -p 6334:6334 \
+            -p 6333:6333 \
+            qdrant/qdrant:latest
+
+          # Wait for Qdrant
+          echo "Waiting for Qdrant to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:6333/health > /dev/null 2>&1; then
+              echo "✅ Qdrant is ready"
+              break
+            fi
+            echo "Waiting for Qdrant... ($i/30)"
+            sleep 1
+          done
+
+      - name: Test container startup
+        run: |
           docker run -d --name test-container \
             --network host \
             -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
+            -e QDRANT_URL=http://localhost:6334 \
+            -e GEMINI_API_KEY=test-api-key \
             -e SERVER_HOST=127.0.0.1 \
             -e SERVER_PORT=8080 \
             -e RUST_LOG=info \
             inklings-server:test
 
-          # 10초 대기 (DB 연결 + 서버 시작)
           echo "Waiting for server to start..."
           sleep 10
 
-          # 컨테이너 로그 확인
           echo "=== Container Logs ==="
           docker logs test-container
 
-          # 컨테이너 상태 확인
           echo "=== Container Status ==="
           if docker ps | grep test-container | grep -q "Up"; then
             echo "✅ Container is running"
@@ -65,21 +137,28 @@ jobs:
 
       - name: Test health endpoint
         run: |
-          # 헬스체크 엔드포인트 호출
           echo "Testing health endpoint..."
-          response=$(curl -s http://localhost:8080/ || echo "failed")
-          echo "Response: $response"
+          for i in {1..10}; do
+            response=$(curl -s http://localhost:8080/api/health || echo "failed")
+            if echo "$response" | grep -q "ok"; then
+              echo "✅ Health check passed"
+              echo "Response: $response"
+              exit 0
+            fi
+            echo "Attempt $i/10 failed, retrying..."
+            sleep 2
+          done
 
-          if echo "$response" | grep -q "ok"; then
-            echo "✅ Health check passed"
-          else
-            echo "❌ Health check failed"
-            docker logs test-container
-            exit 1
-          fi
+          echo "❌ Health check failed after 10 attempts"
+          docker logs test-container
+          exit 1
 
       - name: Cleanup
         if: always()
         run: |
           docker stop test-container || true
           docker rm test-container || true
+          docker stop postgres-test || true
+          docker rm postgres-test || true
+          docker stop qdrant-test || true
+          docker rm qdrant-test || true
