@@ -19,6 +19,20 @@ services:
     networks:
       - inklings-network
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: inklings-qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - inklings-network
+
   api:
     image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
     container_name: inklings-api
@@ -26,6 +40,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-inklings_user}:${POSTGRES_PASSWORD:-inklings_prod_password}@postgres:5432/${POSTGRES_DB:-inklings_db}
+      QDRANT_URL: ${QDRANT_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       RUST_LOG: info
@@ -34,12 +50,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      qdrant:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - inklings-network
 
 volumes:
   postgres_data:
+  qdrant_data:
 
 networks:
   inklings-network:
