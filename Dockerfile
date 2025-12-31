@@ -21,7 +21,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 # Stage 3: Build application
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --workspace
 
 # Stage 4: Runtime
 FROM debian:bookworm-slim
