@@ -97,7 +97,7 @@ jobs:
             --network host \
             -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
             inklings-server:test \
-            sh -c "cd /app && cargo run -p migration up"
+            ./migration up
           echo "✅ Migrations completed"
 
       - name: Start Qdrant for integration test

@@ -34,8 +34,9 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/target/release/inklings-server .
+COPY --from=builder /app/target/release/migration .
 
 # Create non-root user
 RUN useradd -m -u 1001 appuser && \
