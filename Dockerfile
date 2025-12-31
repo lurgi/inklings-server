@@ -21,7 +21,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 # Stage 3: Build application
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --workspace
 
 # Stage 4: Runtime
 FROM debian:bookworm-slim
@@ -34,8 +34,9 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/target/release/inklings-server .
+COPY --from=builder /app/target/release/migration .
 
 # Create non-root user
 RUN useradd -m -u 1001 appuser && \

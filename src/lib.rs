@@ -1,4 +1,4 @@
-// 모듈들을 라이브러리의 공개 API로 만듭니다.
+pub mod clients;
 pub mod db;
 pub mod entities;
 pub mod errors;
@@ -6,12 +6,12 @@ pub mod handlers;
 pub mod models;
 pub mod repositories;
 pub mod services;
+pub mod test_utils;
 
 use anyhow::Result;
 use std::{env::var, sync::Arc};
 use tracing::info;
 
-// 서버 실행 로직을 `run` 함수로 분리합니다.
 pub async fn run() -> Result<()> {
     dotenv::dotenv().ok();
     tracing_subscriber::fmt::init();
@@ -19,12 +19,28 @@ pub async fn run() -> Result<()> {
     info!("Starting Inklings Server...");
 
     let database_url = var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    let qdrant_url = var("QDRANT_URL").expect("QDRANT_URL must be set in .env file");
+    let gemini_api_key = var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set in .env file");
     let host = var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("{}:{}", host, port);
 
     let db = Arc::new(db::create_connection(&database_url).await?);
-    let app = handlers::create_router(db);
+
+    let qdrant_repo = Arc::new(
+        repositories::QdrantRepository::new(qdrant_url)
+            .await
+            .expect("Failed to initialize Qdrant repository"),
+    );
+
+    let gemini_client = Arc::new(clients::GeminiClient::new(gemini_api_key));
+
+    let app = handlers::create_router(
+        db,
+        qdrant_repo,
+        gemini_client.clone() as Arc<dyn clients::Embedder>,
+        gemini_client as Arc<dyn clients::TextGenerator>,
+    );
 
     let listener = tokio::net::TcpListener::bind(&addr)
         .await

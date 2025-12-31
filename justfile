@@ -4,6 +4,53 @@
 default:
     @just --list
 
+# ========================================
+# Docker Compose 명령어
+# ========================================
+
+# 모든 서비스 시작 (PostgreSQL + Qdrant)
+docker-up:
+    docker-compose up -d
+    @echo "✅ All services started!"
+    @echo "   PostgreSQL: localhost:5432"
+    @echo "   Qdrant: localhost:6333"
+
+# 모든 서비스 종료
+docker-down:
+    docker-compose down
+    @echo "✅ All services stopped!"
+
+# 서비스 로그 확인
+docker-logs:
+    docker-compose logs -f
+
+# 실행 중인 서비스 확인
+docker-ps:
+    docker-compose ps
+
+# 서비스 재시작
+docker-restart:
+    docker-compose restart
+
+# PostgreSQL만 시작
+postgres-up:
+    docker-compose up -d postgres
+    @echo "✅ PostgreSQL started on port 5432"
+
+# Qdrant만 시작
+qdrant-up:
+    docker-compose up -d qdrant
+    @echo "✅ Qdrant started on port 6333"
+
+# 모든 서비스 종료 + 볼륨 삭제 (데이터 초기화)
+docker-clean:
+    docker-compose down -v
+    @echo "✅ All services stopped and volumes removed!"
+
+# ========================================
+# 개발 서버
+# ========================================
+
 # 개발 서버 실행
 dev:
     cargo run
@@ -15,6 +62,21 @@ build:
 # 테스트 실행
 test:
     cargo test
+
+# Gemini API 연결 테스트 (모두)
+test-gemini:
+    @echo "🔄 Testing Gemini API connections..."
+    cargo test --lib gemini -- --ignored --nocapture
+
+# Gemini Embedding API 연결 테스트
+test-gemini-embedding:
+    @echo "🔄 Testing Gemini Embedding API..."
+    cargo test test_real_gemini_embedding -- --ignored --nocapture
+
+# Gemini Text Generation API 연결 테스트
+test-gemini-generation:
+    @echo "🔄 Testing Gemini Text Generation API..."
+    cargo test test_real_gemini_generation -- --ignored --nocapture
 
 # 마이그레이션 실행
 migrate:

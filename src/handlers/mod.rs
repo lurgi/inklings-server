@@ -1,9 +1,16 @@
+pub mod assist_handler;
 pub mod auth;
 pub mod health_handler;
 pub mod memo_handler;
 pub mod user_handler;
 
-use crate::services::{memo_service::MemoService, user_service::UserService};
+use crate::{
+    clients::{Embedder, TextGenerator},
+    repositories::QdrantRepo,
+    services::{
+        assist_service::AssistService, memo_service::MemoService, user_service::UserService,
+    },
+};
 use axum::{
     routing::{delete, get, patch, post, put},
     Router,
@@ -15,21 +22,41 @@ use std::sync::Arc;
 pub struct AppState {
     pub db: Arc<DatabaseConnection>,
     pub memo_service: Arc<MemoService>,
+    pub assist_service: Arc<AssistService>,
     pub user_service: Arc<UserService>,
 }
 
-pub fn create_router(db: Arc<DatabaseConnection>) -> Router {
-    let memo_service = Arc::new(MemoService::new(db.clone()));
+pub fn create_router(
+    db: Arc<DatabaseConnection>,
+    qdrant_repo: Arc<dyn QdrantRepo>,
+    embedder: Arc<dyn Embedder>,
+    text_generator: Arc<dyn TextGenerator>,
+) -> Router {
+    let memo_service = Arc::new(MemoService::new(
+        db.clone(),
+        qdrant_repo.clone(),
+        embedder.clone(),
+    ));
+
+    let assist_service = Arc::new(AssistService::new(
+        db.clone(),
+        qdrant_repo,
+        embedder,
+        text_generator,
+    ));
+
     let user_service = Arc::new(UserService::new(db.clone()));
 
     let app_state = AppState {
         db,
         memo_service,
+        assist_service,
         user_service,
     };
 
     Router::new()
         .route("/api/health", get(health_handler::health_check))
+        .route("/api/assist", post(assist_handler::assist))
         .route("/api/users/oauth-login", post(user_handler::oauth_login))
         .nest(
             "/api/memos",
