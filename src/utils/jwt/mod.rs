@@ -40,3 +40,6 @@ pub fn verify_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::e
 
     Ok(token_data.claims)
 }
+
+#[cfg(test)]
+mod tests;
