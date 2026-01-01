@@ -55,6 +55,7 @@ jobs:
           DATABASE_URL_TEST: postgres://test_user:test_pass@localhost:5432/test_db
           QDRANT_URL: http://mock:6334
           GEMINI_API_KEY: mock-key
+          JWT_SECRET: a_very_long_and_secure_secret_for_ci_master_tests
         run: cargo test --all-features
 
       - name: Set up Docker Buildx
@@ -94,6 +95,7 @@ jobs:
             -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
             -e QDRANT_URL=http://localhost:6334 \
             -e GEMINI_API_KEY=test-api-key \
+            -e JWT_SECRET=a_very_long_and_secure_secret_for_ci_master_tests \
             -e SERVER_HOST=127.0.0.1 \
             -e SERVER_PORT=8080 \
             -e RUST_LOG=info \
