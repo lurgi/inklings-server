@@ -7,7 +7,21 @@ use axum::{
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
+use crate::errors::ErrorResponse;
 
+#[utoipa::path(
+    post,
+    path = "/api/memos",
+    tag = "Memos",
+    request_body = CreateMemoRequest,
+    responses(
+        (status = 201, description = "메모 생성 성공", body = MemoResponse),
+        (status = 400, description = "잘못된 요청", body = ErrorResponse),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn create_memo(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -19,6 +33,17 @@ pub async fn create_memo(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/memos",
+    tag = "Memos",
+    responses(
+        (status = 200, description = "메모 목록 조회 성공", body = Vec<MemoResponse>),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn list_memos(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -33,6 +58,21 @@ pub async fn list_memos(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/memos/{id}",
+    tag = "Memos",
+    params(
+        ("id" = i32, Path, description = "메모 ID")
+    ),
+    responses(
+        (status = 200, description = "메모 조회 성공", body = MemoResponse),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn get_memo(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -44,6 +84,23 @@ pub async fn get_memo(
     }
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/memos/{id}",
+    tag = "Memos",
+    params(
+        ("id" = i32, Path, description = "메모 ID")
+    ),
+    request_body = UpdateMemoRequest,
+    responses(
+        (status = 200, description = "메모 수정 성공", body = MemoResponse),
+        (status = 400, description = "잘못된 요청", body = ErrorResponse),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn update_memo(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -56,6 +113,21 @@ pub async fn update_memo(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/memos/{id}",
+    tag = "Memos",
+    params(
+        ("id" = i32, Path, description = "메모 ID")
+    ),
+    responses(
+        (status = 204, description = "메모 삭제 성공"),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn delete_memo(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -67,6 +139,21 @@ pub async fn delete_memo(
     }
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/memos/{id}/pin",
+    tag = "Memos",
+    params(
+        ("id" = i32, Path, description = "메모 ID")
+    ),
+    responses(
+        (status = 200, description = "메모 고정 토글 성공", body = MemoResponse),
+        (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 500, description = "서버 에러", body = ErrorResponse)
+    ),
+    security(("bearer_auth" = []))
+)]
 pub async fn toggle_pin(
     State(state): State<AppState>,
     user: AuthenticatedUser,

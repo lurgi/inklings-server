@@ -27,6 +27,9 @@ dotenv = "0.15"
 anyhow = "1.0"
 thiserror = "2.0"
 
+# Authentication
+jsonwebtoken = "9.0"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -40,6 +43,10 @@ chrono = { version = "0.4", features = ["serde"] }
 axum = "0.7"
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# OpenAPI / Swagger
+utoipa = { version = "5.2", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 
 [dev-dependencies]
 rand = "0.8"

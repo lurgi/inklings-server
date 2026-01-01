@@ -22,8 +22,10 @@ async fn test_oauth_login_new_user() {
 
     let result = service.oauth_login(req).await.unwrap();
 
-    assert_eq!(result.username, "newuser");
-    assert_eq!(result.email, "newuser@example.com");
+    assert_eq!(result.user.username, "newuser");
+    assert_eq!(result.user.email, "newuser@example.com");
+    assert!(result.access_token.len() > 0);
+    assert_eq!(result.expires_in, 86400);
 }
 
 #[tokio::test]
@@ -41,8 +43,10 @@ async fn test_oauth_login_existing_oauth_account() {
     let first_login = service.oauth_login(req.clone()).await.unwrap();
     let second_login = service.oauth_login(req).await.unwrap();
 
-    assert_eq!(first_login.id, second_login.id);
-    assert_eq!(first_login.email, second_login.email);
+    assert_eq!(first_login.user.id, second_login.user.id);
+    assert_eq!(first_login.user.email, second_login.user.email);
+    assert!(first_login.access_token.len() > 0);
+    assert!(second_login.access_token.len() > 0);
 }
 
 #[tokio::test]
@@ -67,5 +71,7 @@ async fn test_oauth_login_different_provider_same_email() {
     let google_login = service.oauth_login(google_req).await.unwrap();
     let kakao_login = service.oauth_login(kakao_req).await.unwrap();
 
-    assert_eq!(google_login.id, kakao_login.id);
+    assert_eq!(google_login.user.id, kakao_login.user.id);
+    assert!(google_login.access_token.len() > 0);
+    assert!(kakao_login.access_token.len() > 0);
 }

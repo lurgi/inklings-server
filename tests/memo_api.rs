@@ -50,6 +50,11 @@ async fn create_test_user(db: &DatabaseConnection, id: i32, username: &str) -> u
     user.insert(db).await.unwrap()
 }
 
+fn generate_test_token(user_id: i32) -> String {
+    let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "test_secret_key_min_32_chars_long".to_string());
+    inklings_server::utils::jwt::generate_token(user_id, &jwt_secret, 24).unwrap()
+}
+
 #[tokio::test]
 async fn test_create_memo_api() {
     let (app, db) = setup().await;
@@ -59,13 +64,15 @@ async fn test_create_memo_api() {
         content: "Test memo from integration test".to_string(),
     };
 
+    let token = generate_test_token(user.id);
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(http::Method::POST)
                 .uri("/api/memos")
                 .header(http::header::CONTENT_TYPE, "application/json")
-                .header("X-User-Id", user.id.to_string())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
                 .body(Body::from(serde_json::to_string(&req_body).unwrap()))
                 .unwrap(),
         )
@@ -123,12 +130,14 @@ async fn test_list_memos_api() {
         .await
         .unwrap();
 
+    let token = generate_test_token(user1.id);
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(http::Method::GET)
                 .uri("/api/memos")
-                .header("X-User-Id", user1.id.to_string())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -168,12 +177,14 @@ async fn test_get_memo_unauthorized_api() {
         .await
         .unwrap();
 
+    let token = generate_test_token(user2.id);
+
     let response = app
         .oneshot(
             Request::builder()
                 .method(http::Method::GET)
                 .uri(format!("/api/memos/{}", memo1.id))
-                .header("X-User-Id", user2.id.to_string())
+                .header(http::header::AUTHORIZATION, format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
         )
