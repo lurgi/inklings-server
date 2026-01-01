@@ -4,6 +4,7 @@ pub mod entities;
 pub mod errors;
 pub mod handlers;
 pub mod models;
+pub mod openapi;
 pub mod repositories;
 pub mod services;
 pub mod test_utils;
@@ -47,7 +48,7 @@ pub async fn run() -> Result<()> {
         .unwrap_or_else(|_| panic!("Failed to bind to {}", addr));
 
     if host == "127.0.0.1" {
-        info!("Server is running on http://localhost:{}", port);
+        info!("Server is running on http://localhost:{}/swagger-ui", port);
     }
 
     axum::serve(listener, app).await?;

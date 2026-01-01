@@ -6,6 +6,7 @@ pub mod user_handler;
 
 use crate::{
     clients::{Embedder, TextGenerator},
+    openapi::ApiDoc,
     repositories::QdrantRepo,
     services::{
         assist_service::AssistService, memo_service::MemoService, user_service::UserService,
@@ -17,6 +18,8 @@ use axum::{
 };
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -54,7 +57,10 @@ pub fn create_router(
         user_service,
     };
 
+    let openapi = ApiDoc::openapi();
+
     Router::new()
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", openapi))
         .route("/api/health", get(health_handler::health_check))
         .route("/api/assist", post(assist_handler::assist))
         .route("/api/users/oauth-login", post(user_handler::oauth_login))
