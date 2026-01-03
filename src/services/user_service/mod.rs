@@ -38,8 +38,7 @@ impl UserService {
                 .await?
                 .ok_or(ServiceError::UserNotFound)?
         } else {
-            let user = if let Some(existing_user) =
-                self.user_repo.find_by_email(&req.email).await?
+            let user = if let Some(existing_user) = self.user_repo.find_by_email(&req.email).await?
             {
                 existing_user
             } else {
@@ -93,9 +92,7 @@ impl UserService {
 
     /// 모든 디바이스 로그아웃
     pub async fn logout_all(&self, user_id: i32) -> Result<(), ServiceError> {
-        self.token_service
-            .revoke_all_refresh_tokens(user_id)
-            .await
+        self.token_service.revoke_all_refresh_tokens(user_id).await
     }
 }
 
