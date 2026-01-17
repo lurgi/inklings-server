@@ -167,3 +167,15 @@ async fn test_delete_memo() {
     let result = service.get_memo(user_id, created.id).await;
     assert!(matches!(result, Err(ServiceError::MemoNotFound)));
 }
+
+#[tokio::test]
+#[ignore] // Phase 2-3: MemoService를 project_id 기반으로 수정 후 활성화
+async fn test_memo_project_isolation() {
+    // TODO: Project 구현 후 다음과 같이 작성
+    // 1. ProjectService로 user의 project1, project2 생성
+    // 2. project1에 memo 2개, project2에 memo 1개 생성
+    // 3. list_memos_by_project(user_id, project1.id) → 2개만 반환
+    // 4. list_memos_by_project(user_id, project2.id) → 1개만 반환
+    // 5. 다른 사용자가 project 접근 시 Unauthorized
+    todo!("Phase 2-3에서 구현");
+}

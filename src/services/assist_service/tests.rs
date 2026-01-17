@@ -168,3 +168,15 @@ async fn test_get_assistance_user_isolation() {
         .iter()
         .any(|memo| memo.content.contains("User 2")));
 }
+
+#[tokio::test]
+#[ignore] // Phase 2-3: AssistService를 project_id 기반으로 수정 후 활성화
+async fn test_get_assistance_project_isolation() {
+    // TODO: Project 구현 후 다음과 같이 작성
+    // 1. user의 project1, project2 생성
+    // 2. project1에 "Rust" 메모, project2에 "Python" 메모 생성
+    // 3. get_assistance(user_id, project1.id, "Rust") → project1 메모만 사용
+    // 4. get_assistance(user_id, project2.id, "Python") → project2 메모만 사용
+    // 5. project1 assist 결과에 project2 메모가 포함되지 않음을 검증
+    todo!("Phase 2-3에서 구현");
+}
