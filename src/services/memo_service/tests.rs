@@ -1,6 +1,9 @@
 use super::*;
 use crate::{
-    db, entities::user,
+    db,
+    entities::user,
+    models::project_dto::CreateProjectRequest,
+    services::ProjectService,
     test_utils::{MockGeminiClient, MockQdrantRepository},
 };
 use chrono::Utc;
@@ -31,9 +34,27 @@ async fn setup_test_db() -> (Arc<DatabaseConnection>, i32) {
     (db, user_id)
 }
 
+async fn setup_test_db_with_project() -> (Arc<DatabaseConnection>, i32, i32) {
+    let (db, user_id) = setup_test_db().await;
+
+    let project_service = ProjectService::new(db.clone());
+    let project = project_service
+        .create_project(
+            user_id,
+            CreateProjectRequest {
+                name: format!("Test Project {}", Utc::now().timestamp_micros()),
+                description: Some("Test project for memos".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+    (db, user_id, project.id)
+}
+
 #[tokio::test]
 async fn test_create_and_get_memo() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -42,9 +63,9 @@ async fn test_create_and_get_memo() {
         content: "Test memo content".to_string(),
     };
 
-    let created = service.create_memo(user_id, req).await.unwrap();
+    let created = service.create_memo(user_id, project_id, req).await.unwrap();
     assert_eq!(created.content, "Test memo content");
-    assert_eq!(created.user_id, user_id);
+    assert_eq!(created.project_id, project_id);
     assert!(!created.is_pinned);
 
     let fetched = service.get_memo(user_id, created.id).await.unwrap();
@@ -54,7 +75,7 @@ async fn test_create_and_get_memo() {
 
 #[tokio::test]
 async fn test_get_memo_unauthorized() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -63,7 +84,7 @@ async fn test_get_memo_unauthorized() {
         content: "User 1's memo".to_string(),
     };
 
-    let created = service.create_memo(user_id, req).await.unwrap();
+    let created = service.create_memo(user_id, project_id, req).await.unwrap();
 
     let result = service.get_memo(user_id + 999, created.id).await;
     assert!(matches!(result, Err(ServiceError::Unauthorized)));
@@ -71,7 +92,7 @@ async fn test_get_memo_unauthorized() {
 
 #[tokio::test]
 async fn test_update_memo() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -79,7 +100,10 @@ async fn test_update_memo() {
     let create_req = CreateMemoRequest {
         content: "Original content".to_string(),
     };
-    let created = service.create_memo(user_id, create_req).await.unwrap();
+    let created = service
+        .create_memo(user_id, project_id, create_req)
+        .await
+        .unwrap();
 
     let update_req = UpdateMemoRequest {
         content: "Updated content".to_string(),
@@ -95,7 +119,7 @@ async fn test_update_memo() {
 
 #[tokio::test]
 async fn test_toggle_pin() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -103,7 +127,7 @@ async fn test_toggle_pin() {
     let req = CreateMemoRequest {
         content: "Pin test".to_string(),
     };
-    let created = service.create_memo(user_id, req).await.unwrap();
+    let created = service.create_memo(user_id, project_id, req).await.unwrap();
     assert!(!created.is_pinned);
 
     let pinned = service.toggle_pin(user_id, created.id).await.unwrap();
@@ -115,7 +139,7 @@ async fn test_toggle_pin() {
 
 #[tokio::test]
 async fn test_list_memos_ordering() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -123,6 +147,7 @@ async fn test_list_memos_ordering() {
     let memo1 = service
         .create_memo(
             user_id,
+            project_id,
             CreateMemoRequest {
                 content: "First".to_string(),
             },
@@ -133,6 +158,7 @@ async fn test_list_memos_ordering() {
     let memo2 = service
         .create_memo(
             user_id,
+            project_id,
             CreateMemoRequest {
                 content: "Second".to_string(),
             },
@@ -142,7 +168,10 @@ async fn test_list_memos_ordering() {
 
     service.toggle_pin(user_id, memo1.id).await.unwrap();
 
-    let memos = service.list_memos(user_id).await.unwrap();
+    let memos = service
+        .list_memos_by_project(user_id, project_id)
+        .await
+        .unwrap();
 
     assert!(memos[0].is_pinned);
     assert_eq!(memos[0].id, memo1.id);
@@ -152,7 +181,7 @@ async fn test_list_memos_ordering() {
 
 #[tokio::test]
 async fn test_delete_memo() {
-    let (db, user_id) = setup_test_db().await;
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
@@ -160,7 +189,7 @@ async fn test_delete_memo() {
     let req = CreateMemoRequest {
         content: "To be deleted".to_string(),
     };
-    let created = service.create_memo(user_id, req).await.unwrap();
+    let created = service.create_memo(user_id, project_id, req).await.unwrap();
 
     service.delete_memo(user_id, created.id).await.unwrap();
 
@@ -169,13 +198,77 @@ async fn test_delete_memo() {
 }
 
 #[tokio::test]
-#[ignore] // Phase 2-3: MemoService를 project_id 기반으로 수정 후 활성화
 async fn test_memo_project_isolation() {
-    // TODO: Project 구현 후 다음과 같이 작성
-    // 1. ProjectService로 user의 project1, project2 생성
-    // 2. project1에 memo 2개, project2에 memo 1개 생성
-    // 3. list_memos_by_project(user_id, project1.id) → 2개만 반환
-    // 4. list_memos_by_project(user_id, project2.id) → 1개만 반환
-    // 5. 다른 사용자가 project 접근 시 Unauthorized
-    todo!("Phase 2-3에서 구현");
+    let (db, user_id, project1_id) = setup_test_db_with_project().await;
+    let qdrant_repo = Arc::new(MockQdrantRepository::new());
+    let embedder = Arc::new(MockGeminiClient::new());
+    let service = MemoService::new(db.clone(), qdrant_repo, embedder as Arc<dyn Embedder>);
+
+    let project_service = ProjectService::new(db.clone());
+    let project2 = project_service
+        .create_project(
+            user_id,
+            CreateProjectRequest {
+                name: format!("Project 2 {}", Utc::now().timestamp_micros()),
+                description: Some("Second project".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+    service
+        .create_memo(
+            user_id,
+            project1_id,
+            CreateMemoRequest {
+                content: "Project 1 - Memo 1".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+    service
+        .create_memo(
+            user_id,
+            project1_id,
+            CreateMemoRequest {
+                content: "Project 1 - Memo 2".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+    service
+        .create_memo(
+            user_id,
+            project2.id,
+            CreateMemoRequest {
+                content: "Project 2 - Memo 1".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+    let project1_memos = service
+        .list_memos_by_project(user_id, project1_id)
+        .await
+        .unwrap();
+    assert_eq!(project1_memos.len(), 2);
+    assert!(project1_memos
+        .iter()
+        .all(|m| m.content.contains("Project 1")));
+
+    let project2_memos = service
+        .list_memos_by_project(user_id, project2.id)
+        .await
+        .unwrap();
+    assert_eq!(project2_memos.len(), 1);
+    assert!(project2_memos
+        .iter()
+        .all(|m| m.content.contains("Project 2")));
+
+    let result = service
+        .list_memos_by_project(user_id + 999, project1_id)
+        .await;
+    assert!(matches!(result, Err(ServiceError::Unauthorized)));
 }

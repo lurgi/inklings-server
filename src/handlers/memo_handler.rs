@@ -6,8 +6,8 @@ use axum::{
 };
 
 use super::{auth::AuthenticatedUser, AppState};
-use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
 use crate::errors::ErrorResponse;
+use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
 
 #[utoipa::path(
     post,
@@ -23,14 +23,11 @@ use crate::errors::ErrorResponse;
     security(("bearer_auth" = []))
 )]
 pub async fn create_memo(
-    State(state): State<AppState>,
-    user: AuthenticatedUser,
-    Json(payload): Json<CreateMemoRequest>,
+    State(_state): State<AppState>,
+    _user: AuthenticatedUser,
+    Json(_payload): Json<CreateMemoRequest>,
 ) -> impl IntoResponse {
-    match state.memo_service.create_memo(user.id, payload).await {
-        Ok(memo) => (StatusCode::CREATED, Json(MemoResponse::from(memo))).into_response(),
-        Err(e) => e.into_response(),
-    }
+    todo!("Phase 4: Handler 구현 예정")
 }
 
 #[utoipa::path(
@@ -45,17 +42,10 @@ pub async fn create_memo(
     security(("bearer_auth" = []))
 )]
 pub async fn list_memos(
-    State(state): State<AppState>,
-    user: AuthenticatedUser,
+    State(_state): State<AppState>,
+    _user: AuthenticatedUser,
 ) -> impl IntoResponse {
-    match state.memo_service.list_memos(user.id).await {
-        Ok(memos) => {
-            let memo_responses: Vec<MemoResponse> =
-                memos.into_iter().map(MemoResponse::from).collect();
-            (StatusCode::OK, Json(memo_responses)).into_response()
-        }
-        Err(e) => e.into_response(),
-    }
+    todo!("Phase 4: Handler 구현 예정")
 }
 
 #[utoipa::path(

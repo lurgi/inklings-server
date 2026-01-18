@@ -21,7 +21,7 @@ pub struct MemoResponse {
     #[schema(example = 42)]
     pub id: i32,
     #[schema(example = 1)]
-    pub user_id: i32,
+    pub project_id: i32,
     #[schema(example = "오늘 배운 Rust 비동기 프로그래밍을 정리해야겠다")]
     pub content: String,
     #[schema(example = false)]
@@ -36,7 +36,7 @@ impl From<memo::Model> for MemoResponse {
     fn from(memo: memo::Model) -> Self {
         Self {
             id: memo.id,
-            user_id: memo.user_id,
+            project_id: memo.project_id,
             content: memo.content,
             is_pinned: memo.is_pinned,
             created_at: memo.created_at,

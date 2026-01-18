@@ -5,12 +5,13 @@ use crate::{
     clients::Embedder,
     errors::ServiceError,
     models::{CreateMemoRequest, MemoResponse, UpdateMemoRequest},
-    repositories::{MemoRepository, QdrantRepo},
+    repositories::{MemoRepository, ProjectRepository, QdrantRepo},
 };
 
 #[derive(Clone)]
 pub struct MemoService {
     memo_repo: MemoRepository,
+    project_repo: ProjectRepository,
     qdrant_repo: Arc<dyn QdrantRepo>,
     embedder: Arc<dyn Embedder>,
 }
@@ -22,7 +23,8 @@ impl MemoService {
         embedder: Arc<dyn Embedder>,
     ) -> Self {
         Self {
-            memo_repo: MemoRepository::new(db),
+            memo_repo: MemoRepository::new(db.clone()),
+            project_repo: ProjectRepository::new(db),
             qdrant_repo,
             embedder,
         }
@@ -31,13 +33,28 @@ impl MemoService {
     pub async fn create_memo(
         &self,
         user_id: i32,
+        project_id: i32,
         req: CreateMemoRequest,
     ) -> Result<MemoResponse, ServiceError> {
-        let memo = self.memo_repo.create(user_id, req.content.clone()).await?;
+        // Project 권한 검증
+        let project = self
+            .project_repo
+            .find_by_id(project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
+            return Err(ServiceError::Unauthorized);
+        }
+
+        let memo = self
+            .memo_repo
+            .create(project_id, req.content.clone())
+            .await?;
 
         let vector = self.embedder.embed(&req.content).await?;
         self.qdrant_repo
-            .upsert_memo(memo.id, user_id, vector)
+            .upsert_memo(memo.id, project_id, vector)
             .await?;
 
         Ok(MemoResponse::from(memo))
@@ -50,15 +67,37 @@ impl MemoService {
             .await?
             .ok_or(ServiceError::MemoNotFound)?;
 
-        if memo.user_id != user_id {
+        // 권한 검증: memo → project → user
+        let project = self
+            .project_repo
+            .find_by_id(memo.project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
             return Err(ServiceError::Unauthorized);
         }
 
         Ok(MemoResponse::from(memo))
     }
 
-    pub async fn list_memos(&self, user_id: i32) -> Result<Vec<MemoResponse>, ServiceError> {
-        let memos = self.memo_repo.find_by_user_id(user_id).await?;
+    pub async fn list_memos_by_project(
+        &self,
+        user_id: i32,
+        project_id: i32,
+    ) -> Result<Vec<MemoResponse>, ServiceError> {
+        // Project 권한 검증
+        let project = self
+            .project_repo
+            .find_by_id(project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
+            return Err(ServiceError::Unauthorized);
+        }
+
+        let memos = self.memo_repo.find_by_project_id(project_id).await?;
         Ok(memos.into_iter().map(MemoResponse::from).collect())
     }
 
@@ -74,7 +113,14 @@ impl MemoService {
             .await?
             .ok_or(ServiceError::MemoNotFound)?;
 
-        if memo.user_id != user_id {
+        // 권한 검증: memo → project → user
+        let project = self
+            .project_repo
+            .find_by_id(memo.project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
             return Err(ServiceError::Unauthorized);
         }
 
@@ -82,7 +128,7 @@ impl MemoService {
 
         let vector = self.embedder.embed(&req.content).await?;
         self.qdrant_repo
-            .upsert_memo(memo_id, user_id, vector)
+            .upsert_memo(memo_id, memo.project_id, vector)
             .await?;
 
         Ok(MemoResponse::from(updated_memo))
@@ -95,7 +141,14 @@ impl MemoService {
             .await?
             .ok_or(ServiceError::MemoNotFound)?;
 
-        if memo.user_id != user_id {
+        // 권한 검증: memo → project → user
+        let project = self
+            .project_repo
+            .find_by_id(memo.project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
             return Err(ServiceError::Unauthorized);
         }
 
@@ -105,14 +158,25 @@ impl MemoService {
         Ok(())
     }
 
-    pub async fn toggle_pin(&self, user_id: i32, memo_id: i32) -> Result<MemoResponse, ServiceError> {
+    pub async fn toggle_pin(
+        &self,
+        user_id: i32,
+        memo_id: i32,
+    ) -> Result<MemoResponse, ServiceError> {
         let memo = self
             .memo_repo
             .find_by_id(memo_id)
             .await?
             .ok_or(ServiceError::MemoNotFound)?;
 
-        if memo.user_id != user_id {
+        // 권한 검증: memo → project → user
+        let project = self
+            .project_repo
+            .find_by_id(memo.project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
             return Err(ServiceError::Unauthorized);
         }
 

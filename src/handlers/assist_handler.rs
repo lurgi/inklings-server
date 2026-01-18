@@ -1,8 +1,8 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 
 use super::{auth::AuthenticatedUser, AppState};
-use crate::models::assist_dto::{AssistRequest, AssistResponse};
 use crate::errors::ErrorResponse;
+use crate::models::assist_dto::{AssistRequest, AssistResponse};
 
 #[utoipa::path(
     post,
@@ -18,12 +18,9 @@ use crate::errors::ErrorResponse;
     security(("bearer_auth" = []))
 )]
 pub async fn assist(
-    State(state): State<AppState>,
-    user: AuthenticatedUser,
-    Json(payload): Json<AssistRequest>,
+    State(_state): State<AppState>,
+    _user: AuthenticatedUser,
+    Json(_payload): Json<AssistRequest>,
 ) -> impl IntoResponse {
-    match state.assist_service.get_assistance(user.id, payload).await {
-        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
-        Err(e) => e.into_response(),
-    }
+    todo!("Phase 4: Handler 구현 예정")
 }

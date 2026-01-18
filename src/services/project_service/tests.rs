@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::db;
     use crate::entities::user;
     use crate::errors::ServiceError;
@@ -44,8 +43,6 @@ mod tests {
 
         (db, user.id)
     }
-
-    // ========== 기본 테스트 ==========
 
     #[tokio::test]
     async fn test_create_project_success() {
@@ -181,8 +178,6 @@ mod tests {
         assert!(matches!(get_result, Err(ServiceError::ProjectNotFound)));
     }
 
-    // ========== 에러 케이스 테스트 ==========
-
     #[tokio::test]
     async fn test_create_project_duplicate_name() {
         let (db, user_id) = setup_test_db().await;
@@ -281,8 +276,6 @@ mod tests {
         assert!(matches!(result, Err(ServiceError::Unauthorized)));
     }
 
-    // ========== 경계값 테스트 ==========
-
     #[tokio::test]
     async fn test_create_project_empty_name() {
         let (db, user_id) = setup_test_db().await;
@@ -371,8 +364,6 @@ mod tests {
             Err(ServiceError::ProjectNameAlreadyExists)
         ));
     }
-
-    // ========== Project Isolation 테스트 ==========
 
     #[tokio::test]
     async fn test_project_isolation_between_users() {

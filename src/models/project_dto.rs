@@ -2,6 +2,8 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::entities::project;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct CreateProjectRequest {
     #[schema(example = "개인 블로그 프로젝트")]
@@ -39,4 +41,17 @@ pub struct ProjectResponse {
 
     #[schema(example = "2024-01-15T10:30:00")]
     pub updated_at: NaiveDateTime,
+}
+
+impl From<project::Model> for ProjectResponse {
+    fn from(project: project::Model) -> Self {
+        Self {
+            id: project.id,
+            user_id: project.user_id,
+            name: project.name,
+            description: project.description,
+            created_at: project.created_at,
+            updated_at: project.updated_at,
+        }
+    }
 }
