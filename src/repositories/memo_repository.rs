@@ -18,20 +18,20 @@ impl MemoRepository {
         Memo::find_by_id(id).one(self.db.as_ref()).await
     }
 
-    pub async fn find_by_user_id(&self, user_id: i32) -> Result<Vec<memo::Model>, DbErr> {
+    pub async fn find_by_project_id(&self, project_id: i32) -> Result<Vec<memo::Model>, DbErr> {
         Memo::find()
-            .filter(memo::Column::UserId.eq(user_id))
+            .filter(memo::Column::ProjectId.eq(project_id))
             .order_by_desc(memo::Column::IsPinned)
             .order_by_desc(memo::Column::UpdatedAt)
             .all(self.db.as_ref())
             .await
     }
 
-    pub async fn create(&self, user_id: i32, content: String) -> Result<memo::Model, DbErr> {
+    pub async fn create(&self, project_id: i32, content: String) -> Result<memo::Model, DbErr> {
         let now = Utc::now().naive_utc();
 
         let active_model = memo::ActiveModel {
-            user_id: Set(user_id),
+            project_id: Set(project_id),
             content: Set(content),
             is_pinned: Set(false),
             created_at: Set(now),
