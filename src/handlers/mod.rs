@@ -1,6 +1,7 @@
 pub mod assist_handler;
 pub mod auth;
 pub mod auth_handler;
+pub mod essay_handler;
 pub mod health_handler;
 pub mod memo_handler;
 pub mod project_handler;
@@ -11,8 +12,8 @@ use crate::{
     openapi::ApiDoc,
     repositories::QdrantRepo,
     services::{
-        assist_service::AssistService, memo_service::MemoService, project_service::ProjectService,
-        user_service::UserService,
+        assist_service::AssistService, essay_service::EssayService, memo_service::MemoService,
+        project_service::ProjectService, user_service::UserService,
     },
 };
 use axum::{
@@ -34,6 +35,7 @@ pub struct AppState {
     pub assist_service: Arc<AssistService>,
     pub user_service: Arc<UserService>,
     pub project_service: Arc<ProjectService>,
+    pub essay_service: Arc<EssayService>,
 }
 
 pub fn create_router(
@@ -60,12 +62,15 @@ pub fn create_router(
 
     let project_service = Arc::new(ProjectService::new(db.clone()));
 
+    let essay_service = Arc::new(EssayService::new(db.clone()));
+
     let app_state = AppState {
         db,
         memo_service,
         assist_service,
         user_service,
         project_service,
+        essay_service,
     };
 
     let openapi = ApiDoc::openapi();
@@ -115,6 +120,15 @@ pub fn create_router(
                 .route("/:id", put(memo_handler::update_memo))
                 .route("/:id", delete(memo_handler::delete_memo))
                 .route("/:id/pin", patch(memo_handler::toggle_pin)),
+        )
+        .nest(
+            "/api/essays",
+            Router::new()
+                .route("/", post(essay_handler::create_essay))
+                .route("/", get(essay_handler::list_essays))
+                .route("/:id", get(essay_handler::get_essay))
+                .route("/:id", put(essay_handler::update_essay))
+                .route("/:id", delete(essay_handler::delete_essay)),
         )
         .layer(CookieManagerLayer::new())
         .layer(cors)
