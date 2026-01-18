@@ -28,11 +28,7 @@ pub async fn create_project(
     user: AuthenticatedUser,
     Json(payload): Json<CreateProjectRequest>,
 ) -> impl IntoResponse {
-    match state
-        .project_service
-        .create_project(user.id, payload)
-        .await
-    {
+    match state.project_service.create_project(user.id, payload).await {
         Ok(project) => (StatusCode::CREATED, Json(project)).into_response(),
         Err(e) => e.into_response(),
     }

@@ -6,6 +6,9 @@ use crate::entities::memo;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
 pub struct CreateMemoRequest {
+    #[schema(example = 1)]
+    pub project_id: i32,
+
     #[schema(example = "오늘 배운 Rust 비동기 프로그래밍을 정리해야겠다")]
     pub content: String,
 }

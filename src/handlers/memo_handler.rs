@@ -18,34 +18,52 @@ use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest
         (status = 201, description = "메모 생성 성공", body = MemoResponse),
         (status = 400, description = "잘못된 요청", body = ErrorResponse),
         (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 403, description = "권한 없음", body = ErrorResponse),
+        (status = 404, description = "프로젝트를 찾을 수 없음", body = ErrorResponse),
         (status = 500, description = "서버 에러", body = ErrorResponse)
     ),
     security(("bearer_auth" = []))
 )]
 pub async fn create_memo(
-    State(_state): State<AppState>,
-    _user: AuthenticatedUser,
-    Json(_payload): Json<CreateMemoRequest>,
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<CreateMemoRequest>,
 ) -> impl IntoResponse {
-    todo!("Phase 4: Handler 구현 예정")
+    match state
+        .memo_service
+        .create_memo(user.id, payload.project_id, payload)
+        .await
+    {
+        Ok(memo) => (StatusCode::CREATED, Json(MemoResponse::from(memo))).into_response(),
+        Err(e) => e.into_response(),
+    }
 }
 
 #[utoipa::path(
     get,
     path = "/api/memos",
     tag = "Memos",
+    params(
+        ("project_id" = Option<i32>, Query, description = "프로젝트 ID (없으면 모든 메모 조회)")
+    ),
     responses(
         (status = 200, description = "메모 목록 조회 성공", body = Vec<MemoResponse>),
         (status = 401, description = "인증 실패", body = ErrorResponse),
+        (status = 403, description = "권한 없음", body = ErrorResponse),
+        (status = 404, description = "프로젝트를 찾을 수 없음", body = ErrorResponse),
         (status = 500, description = "서버 에러", body = ErrorResponse)
     ),
     security(("bearer_auth" = []))
 )]
 pub async fn list_memos(
-    State(_state): State<AppState>,
-    _user: AuthenticatedUser,
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
 ) -> impl IntoResponse {
-    todo!("Phase 4: Handler 구현 예정")
+    let memos = state.memo_service.list_all_memos(user.id).await;
+    match memos {
+        Ok(memos) => (StatusCode::OK, Json(memos)).into_response(),
+        Err(e) => e.into_response(),
+    }
 }
 
 #[utoipa::path(
