@@ -68,8 +68,8 @@ async fn test_get_assistance() {
     memo_service
         .create_memo(
             user_id,
-            project_id,
             CreateMemoRequest {
+                project_id,
                 content: "Rust is a systems programming language".to_string(),
             },
         )
@@ -79,8 +79,8 @@ async fn test_get_assistance() {
     memo_service
         .create_memo(
             user_id,
-            project_id,
             CreateMemoRequest {
+                project_id,
                 content: "Async programming in Rust".to_string(),
             },
         )
@@ -179,8 +179,8 @@ async fn test_get_assistance_user_isolation() {
     memo_service
         .create_memo(
             user1_id,
-            project1_id,
             CreateMemoRequest {
+                project_id: project1_id,
                 content: "User 1 memo about Rust".to_string(),
             },
         )
@@ -190,8 +190,8 @@ async fn test_get_assistance_user_isolation() {
     memo_service
         .create_memo(
             user2_id,
-            project2.id,
             CreateMemoRequest {
+                project_id: project2.id,
                 content: "User 2 memo about Rust".to_string(),
             },
         )
@@ -253,8 +253,8 @@ async fn test_get_assistance_project_isolation() {
     memo_service
         .create_memo(
             user_id,
-            project1_id,
             CreateMemoRequest {
+                project_id: project1_id,
                 content: "Rust is a systems programming language".to_string(),
             },
         )
@@ -264,8 +264,8 @@ async fn test_get_assistance_project_isolation() {
     memo_service
         .create_memo(
             user_id,
-            project2.id,
             CreateMemoRequest {
+                project_id: project2.id,
                 content: "Python is a high-level programming language".to_string(),
             },
         )

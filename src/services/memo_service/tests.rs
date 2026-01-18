@@ -60,10 +60,11 @@ async fn test_create_and_get_memo() {
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
 
     let req = CreateMemoRequest {
+        project_id,
         content: "Test memo content".to_string(),
     };
 
-    let created = service.create_memo(user_id, project_id, req).await.unwrap();
+    let created = service.create_memo(user_id, req).await.unwrap();
     assert_eq!(created.content, "Test memo content");
     assert_eq!(created.project_id, project_id);
     assert!(!created.is_pinned);
@@ -81,10 +82,11 @@ async fn test_get_memo_unauthorized() {
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
 
     let req = CreateMemoRequest {
+        project_id,
         content: "User 1's memo".to_string(),
     };
 
-    let created = service.create_memo(user_id, project_id, req).await.unwrap();
+    let created = service.create_memo(user_id, req).await.unwrap();
 
     let result = service.get_memo(user_id + 999, created.id).await;
     assert!(matches!(result, Err(ServiceError::Unauthorized)));
@@ -98,12 +100,10 @@ async fn test_update_memo() {
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
 
     let create_req = CreateMemoRequest {
+        project_id,
         content: "Original content".to_string(),
     };
-    let created = service
-        .create_memo(user_id, project_id, create_req)
-        .await
-        .unwrap();
+    let created = service.create_memo(user_id, create_req).await.unwrap();
 
     let update_req = UpdateMemoRequest {
         content: "Updated content".to_string(),
@@ -125,9 +125,10 @@ async fn test_toggle_pin() {
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
 
     let req = CreateMemoRequest {
+        project_id,
         content: "Pin test".to_string(),
     };
-    let created = service.create_memo(user_id, project_id, req).await.unwrap();
+    let created = service.create_memo(user_id, req).await.unwrap();
     assert!(!created.is_pinned);
 
     let pinned = service.toggle_pin(user_id, created.id).await.unwrap();
@@ -147,8 +148,8 @@ async fn test_list_memos_ordering() {
     let memo1 = service
         .create_memo(
             user_id,
-            project_id,
             CreateMemoRequest {
+                project_id,
                 content: "First".to_string(),
             },
         )
@@ -158,8 +159,8 @@ async fn test_list_memos_ordering() {
     let memo2 = service
         .create_memo(
             user_id,
-            project_id,
             CreateMemoRequest {
+                project_id,
                 content: "Second".to_string(),
             },
         )
@@ -187,9 +188,10 @@ async fn test_delete_memo() {
     let service = MemoService::new(db, qdrant_repo, embedder as Arc<dyn Embedder>);
 
     let req = CreateMemoRequest {
+        project_id,
         content: "To be deleted".to_string(),
     };
-    let created = service.create_memo(user_id, project_id, req).await.unwrap();
+    let created = service.create_memo(user_id, req).await.unwrap();
 
     service.delete_memo(user_id, created.id).await.unwrap();
 
@@ -219,8 +221,8 @@ async fn test_memo_project_isolation() {
     service
         .create_memo(
             user_id,
-            project1_id,
             CreateMemoRequest {
+                project_id: project1_id,
                 content: "Project 1 - Memo 1".to_string(),
             },
         )
@@ -230,8 +232,8 @@ async fn test_memo_project_isolation() {
     service
         .create_memo(
             user_id,
-            project1_id,
             CreateMemoRequest {
+                project_id: project1_id,
                 content: "Project 1 - Memo 2".to_string(),
             },
         )
@@ -241,8 +243,8 @@ async fn test_memo_project_isolation() {
     service
         .create_memo(
             user_id,
-            project2.id,
             CreateMemoRequest {
+                project_id: project2.id,
                 content: "Project 2 - Memo 1".to_string(),
             },
         )

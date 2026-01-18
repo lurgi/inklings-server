@@ -3,8 +3,10 @@ mod tests {
     use crate::db;
     use crate::entities::user;
     use crate::errors::ServiceError;
+    use crate::models::memo_dto::CreateMemoRequest;
     use crate::models::project_dto::{CreateProjectRequest, UpdateProjectRequest};
-    use crate::services::ProjectService;
+    use crate::services::{MemoService, ProjectService};
+    use crate::test_utils::{MockGeminiClient, MockQdrantRepository};
     use chrono::Utc;
     use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
     use std::sync::Arc;
@@ -428,6 +430,66 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_cascade_delete_memos() {
-        todo!("Memo 구현 후 작성");
+        let (db, user_id) = setup_test_db().await;
+
+        let project_service = ProjectService::new(db.clone());
+        let project = project_service
+            .create_project(
+                user_id,
+                CreateProjectRequest {
+                    name: "Project with memos".to_string(),
+                    description: Some("Project for cascade test".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+        let project_id = project.id;
+
+        // Memo 생성
+        let qdrant_repo = Arc::new(MockQdrantRepository::new());
+        let embedder = Arc::new(MockGeminiClient::new());
+        let memo_service = MemoService::new(db.clone(), qdrant_repo, embedder);
+
+        let memo1 = memo_service
+            .create_memo(
+                user_id,
+                CreateMemoRequest {
+                    project_id,
+                    content: "Memo 1".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let memo2 = memo_service
+            .create_memo(
+                user_id,
+                CreateMemoRequest {
+                    project_id,
+                    content: "Memo 2".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Memo가 있는지 확인
+        let memos = memo_service
+            .list_memos_by_project(user_id, project_id)
+            .await
+            .unwrap();
+        assert_eq!(memos.len(), 2);
+
+        // Project 삭제
+        project_service
+            .delete_project(user_id, project_id)
+            .await
+            .unwrap();
+
+        // Memo도 삭제되었는지 확인
+        let result = memo_service
+            .list_memos_by_project(user_id, project_id)
+            .await;
+
+        assert!(result.is_err());
     }
 }

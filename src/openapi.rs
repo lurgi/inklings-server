@@ -5,6 +5,7 @@ use crate::errors::ErrorResponse;
 use crate::handlers::health_handler::HealthResponse;
 use crate::models::assist_dto::{AssistRequest, AssistResponse, SimilarMemo};
 use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
+use crate::models::project_dto::{CreateProjectRequest, ProjectResponse, UpdateProjectRequest};
 use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, UserResponse};
 
 #[derive(OpenApi)]
@@ -20,6 +21,11 @@ use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, U
         crate::handlers::auth_handler::refresh,
         crate::handlers::auth_handler::logout,
         crate::handlers::auth_handler::logout_all,
+        crate::handlers::project_handler::create_project,
+        crate::handlers::project_handler::list_projects,
+        crate::handlers::project_handler::get_project,
+        crate::handlers::project_handler::update_project,
+        crate::handlers::project_handler::delete_project,
         crate::handlers::memo_handler::create_memo,
         crate::handlers::memo_handler::list_memos,
         crate::handlers::memo_handler::get_memo,
@@ -36,6 +42,9 @@ use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, U
             AuthResponse,
             LogoutResponse,
             OAuthProvider,
+            CreateProjectRequest,
+            UpdateProjectRequest,
+            ProjectResponse,
             CreateMemoRequest,
             UpdateMemoRequest,
             MemoResponse,
@@ -49,6 +58,7 @@ use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, U
         (name = "Health", description = "서버 상태 확인"),
         (name = "Users", description = "사용자 관리"),
         (name = "Auth", description = "인증 관리 (토큰 갱신, 로그아웃)"),
+        (name = "Projects", description = "프로젝트 관리"),
         (name = "Memos", description = "메모 관리"),
         (name = "Assist", description = "AI 어시스턴트"),
     ),

@@ -3,6 +3,7 @@ pub mod auth;
 pub mod auth_handler;
 pub mod health_handler;
 pub mod memo_handler;
+pub mod project_handler;
 pub mod user_handler;
 
 use crate::{
@@ -10,7 +11,8 @@ use crate::{
     openapi::ApiDoc,
     repositories::QdrantRepo,
     services::{
-        assist_service::AssistService, memo_service::MemoService, user_service::UserService,
+        assist_service::AssistService, memo_service::MemoService, project_service::ProjectService,
+        user_service::UserService,
     },
 };
 use axum::{
@@ -31,6 +33,7 @@ pub struct AppState {
     pub memo_service: Arc<MemoService>,
     pub assist_service: Arc<AssistService>,
     pub user_service: Arc<UserService>,
+    pub project_service: Arc<ProjectService>,
 }
 
 pub fn create_router(
@@ -52,21 +55,23 @@ pub fn create_router(
         text_generator,
     ));
 
-    let user_service = Arc::new(
-        UserService::new(db.clone()).expect("Failed to initialize UserService"),
-    );
+    let user_service =
+        Arc::new(UserService::new(db.clone()).expect("Failed to initialize UserService"));
+
+    let project_service = Arc::new(ProjectService::new(db.clone()));
 
     let app_state = AppState {
         db,
         memo_service,
         assist_service,
         user_service,
+        project_service,
     };
 
     let openapi = ApiDoc::openapi();
 
-    let frontend_url = std::env::var("FRONTEND_URL")
-        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let frontend_url =
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
     let cors = CorsLayer::new()
         .allow_origin(
@@ -92,6 +97,15 @@ pub fn create_router(
         .route("/api/auth/refresh", post(auth_handler::refresh))
         .route("/api/auth/logout", post(auth_handler::logout))
         .route("/api/auth/logout-all", delete(auth_handler::logout_all))
+        .nest(
+            "/api/projects",
+            Router::new()
+                .route("/", post(project_handler::create_project))
+                .route("/", get(project_handler::list_projects))
+                .route("/:id", get(project_handler::get_project))
+                .route("/:id", put(project_handler::update_project))
+                .route("/:id", delete(project_handler::delete_project)),
+        )
         .nest(
             "/api/memos",
             Router::new()

@@ -33,13 +33,12 @@ impl MemoService {
     pub async fn create_memo(
         &self,
         user_id: i32,
-        project_id: i32,
         req: CreateMemoRequest,
     ) -> Result<MemoResponse, ServiceError> {
         // Project 권한 검증
         let project = self
             .project_repo
-            .find_by_id(project_id)
+            .find_by_id(req.project_id)
             .await?
             .ok_or(ServiceError::ProjectNotFound)?;
 
@@ -49,12 +48,12 @@ impl MemoService {
 
         let memo = self
             .memo_repo
-            .create(project_id, req.content.clone())
+            .create(req.project_id, req.content.clone())
             .await?;
 
         let vector = self.embedder.embed(&req.content).await?;
         self.qdrant_repo
-            .upsert_memo(memo.id, project_id, vector)
+            .upsert_memo(memo.id, req.project_id, vector)
             .await?;
 
         Ok(MemoResponse::from(memo))
