@@ -31,7 +31,7 @@ pub enum Relation {
     #[sea_orm(has_many = "super::memo::Entity")]
     Memos,
 
-    #[sea_orm(has_many = "super::essays::Entity")]
+    #[sea_orm(has_many = "super::essay::Entity")]
     Essays,
 }
 
@@ -47,7 +47,7 @@ impl Related<super::memo::Entity> for Entity {
     }
 }
 
-impl Related<super::essays::Entity> for Entity {
+impl Related<super::essay::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Essays.def()
     }
