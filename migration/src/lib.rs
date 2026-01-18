@@ -7,6 +7,7 @@ mod m20250102_000001_create_refresh_tokens;
 mod m20250103_000001_rename_refresh_token_table;
 mod m20260118_000001_create_projects_table;
 mod m20260118_000002_refactor_memos_table;
+mod m20260118_000003_create_essays_table;
 
 pub struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250103_000001_rename_refresh_token_table::Migration),
             Box::new(m20260118_000001_create_projects_table::Migration),
             Box::new(m20260118_000002_refactor_memos_table::Migration),
+            Box::new(m20260118_000003_create_essays_table::Migration),
         ]
     }
 }
