@@ -8,7 +8,7 @@ pub struct Model {
     pub id: i32,
 
     #[sea_orm(indexed)]
-    pub user_id: i32,
+    pub project_id: i32,
 
     pub content: String,
 
@@ -22,16 +22,16 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::user::Entity",
-        from = "Column::UserId",
-        to = "super::user::Column::Id"
+        belongs_to = "super::project::Entity",
+        from = "Column::ProjectId",
+        to = "super::project::Column::Id"
     )]
-    User,
+    Project,
 }
 
-impl Related<super::user::Entity> for Entity {
+impl Related<super::project::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::User.def()
+        Relation::Project.def()
     }
 }
 
