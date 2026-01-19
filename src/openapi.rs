@@ -68,6 +68,7 @@ use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, U
         (name = "Users", description = "사용자 관리"),
         (name = "Auth", description = "인증 관리 (토큰 갱신, 로그아웃)"),
         (name = "Projects", description = "프로젝트 관리"),
+        (name = "Essays", description = "에세이 관리"),
         (name = "Memos", description = "메모 관리"),
         (name = "Assist", description = "AI 어시스턴트"),
     ),
