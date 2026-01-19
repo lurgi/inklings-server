@@ -4,6 +4,7 @@ use crate::entities::oauth_account::OAuthProvider;
 use crate::errors::ErrorResponse;
 use crate::handlers::health_handler::HealthResponse;
 use crate::models::assist_dto::{AssistRequest, AssistResponse, SimilarMemo};
+use crate::models::essay_dto::{CreateEssayRequest, EssayResponse, UpdateEssayRequest};
 use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
 use crate::models::project_dto::{CreateProjectRequest, ProjectResponse, UpdateProjectRequest};
 use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, UserResponse};
@@ -26,6 +27,11 @@ use crate::models::user_dto::{AuthResponse, LogoutResponse, OAuthLoginRequest, U
         crate::handlers::project_handler::get_project,
         crate::handlers::project_handler::update_project,
         crate::handlers::project_handler::delete_project,
+        crate::handlers::essay_handler::create_essay,
+        crate::handlers::essay_handler::list_essays,
+        crate::handlers::essay_handler::get_essay,
+        crate::handlers::essay_handler::update_essay,
+        crate::handlers::essay_handler::delete_essay,
         crate::handlers::memo_handler::create_memo,
         crate::handlers::memo_handler::list_memos,
         crate::handlers::memo_handler::get_memo,
