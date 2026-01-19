@@ -1,4 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::errors::ErrorResponse;
@@ -18,9 +19,24 @@ use crate::models::assist_dto::{AssistRequest, AssistResponse};
     security(("bearer_auth" = []))
 )]
 pub async fn assist(
-    State(_state): State<AppState>,
-    _user: AuthenticatedUser,
-    Json(_payload): Json<AssistRequest>,
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<AssistRequest>,
 ) -> impl IntoResponse {
-    todo!("Phase 4: Handler 구현 예정")
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
+    match state
+        .assist_service
+        .get_assistance(user.id, payload.project_id, payload)
+        .await
+    {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(e) => e.into_response(),
+    }
 }

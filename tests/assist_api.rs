@@ -11,7 +11,12 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, NotSet, Set};
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
-async fn setup() -> (Router, Arc<DatabaseConnection>) {
+async fn setup() -> (
+    Router,
+    Arc<DatabaseConnection>,
+    Arc<MockQdrantRepository>,
+    Arc<MockGeminiClient>,
+) {
     dotenv::dotenv().ok();
 
     let database_url = std::env::var("DATABASE_URL_TEST")
@@ -26,11 +31,11 @@ async fn setup() -> (Router, Arc<DatabaseConnection>) {
     // 전체 라우터 생성
     let app = handlers::create_router(
         db.clone(),
-        qdrant_repo,
+        qdrant_repo.clone(),
         gemini_client.clone() as Arc<dyn Embedder>,
-        gemini_client as Arc<dyn TextGenerator>,
+        gemini_client.clone() as Arc<dyn TextGenerator>,
     );
-    (app, db)
+    (app, db, qdrant_repo, gemini_client)
 }
 
 fn generate_test_token(user_id: i32) -> String {
@@ -82,7 +87,7 @@ async fn create_test_project(
 
 #[tokio::test]
 async fn test_assist_success() {
-    let (app, db) = setup().await;
+    let (app, db, qdrant_repo, embedder) = setup().await;
 
     // 사용자 생성
     let user = create_test_user(&db, 5001, "user5001").await;
@@ -90,9 +95,7 @@ async fn test_assist_success() {
     // 프로젝트 생성
     let project = create_test_project(&db, user.id, "Test Project").await;
 
-    // 메모 생성 (Mock Qdrant에 자동 저장)
-    let qdrant_repo = Arc::new(MockQdrantRepository::new());
-    let embedder = Arc::new(MockGeminiClient::new());
+    // 메모 생성 (setup()에서 받은 같은 Mock 인스턴스 사용)
     let memo_service =
         services::MemoService::new(db.clone(), qdrant_repo, embedder as Arc<dyn Embedder>);
 
@@ -140,7 +143,7 @@ async fn test_assist_success() {
 
 #[tokio::test]
 async fn test_assist_no_memos() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5006, "user5006").await;
     let project = create_test_project(&db, user.id, "Empty Project").await;
 
@@ -180,7 +183,7 @@ async fn test_assist_no_memos() {
 
 #[tokio::test]
 async fn test_assist_prompt_min_length() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5007, "user5007").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -210,7 +213,7 @@ async fn test_assist_prompt_min_length() {
 
 #[tokio::test]
 async fn test_assist_prompt_max_length() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5008, "user5008").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -240,7 +243,7 @@ async fn test_assist_prompt_max_length() {
 
 #[tokio::test]
 async fn test_assist_prompt_empty() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5009, "user5009").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -270,7 +273,7 @@ async fn test_assist_prompt_empty() {
 
 #[tokio::test]
 async fn test_assist_prompt_too_long() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5010, "user5010").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -304,7 +307,7 @@ async fn test_assist_prompt_too_long() {
 
 #[tokio::test]
 async fn test_assist_limit_min() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5011, "user5011").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -334,7 +337,7 @@ async fn test_assist_limit_min() {
 
 #[tokio::test]
 async fn test_assist_limit_max() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5012, "user5012").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -364,7 +367,7 @@ async fn test_assist_limit_max() {
 
 #[tokio::test]
 async fn test_assist_limit_zero() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5013, "user5013").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -394,7 +397,7 @@ async fn test_assist_limit_zero() {
 
 #[tokio::test]
 async fn test_assist_limit_too_large() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5014, "user5014").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -428,7 +431,7 @@ async fn test_assist_limit_too_large() {
 
 #[tokio::test]
 async fn test_assist_unauthorized() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
 
     let user1 = create_test_user(&db, 5002, "user5002").await;
     let user2 = create_test_user(&db, 5003, "user5003").await;
@@ -461,7 +464,7 @@ async fn test_assist_unauthorized() {
 
 #[tokio::test]
 async fn test_assist_no_auth() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5015, "user5015").await;
     let project = create_test_project(&db, user.id, "Test Project").await;
 
@@ -493,7 +496,7 @@ async fn test_assist_no_auth() {
 
 #[tokio::test]
 async fn test_assist_project_not_found() {
-    let (app, db) = setup().await;
+    let (app, db, _, _) = setup().await;
     let user = create_test_user(&db, 5004, "user5004").await;
 
     let req_body = AssistRequest {

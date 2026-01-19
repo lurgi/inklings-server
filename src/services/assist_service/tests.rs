@@ -95,6 +95,7 @@ async fn test_get_assistance() {
     );
 
     let req = AssistRequest {
+        project_id,
         prompt: "Tell me about Rust programming".to_string(),
         limit: 5,
     };
@@ -123,6 +124,7 @@ async fn test_get_assistance_no_similar_memos() {
     );
 
     let req = AssistRequest {
+        project_id,
         prompt: "Tell me about Python".to_string(),
         limit: 5,
     };
@@ -206,6 +208,7 @@ async fn test_get_assistance_user_isolation() {
     );
 
     let req = AssistRequest {
+        project_id: project1_id,
         prompt: "Tell me about Rust".to_string(),
         limit: 5,
     };
@@ -280,6 +283,7 @@ async fn test_get_assistance_project_isolation() {
     );
 
     let req1 = AssistRequest {
+        project_id: project1_id,
         prompt: "Tell me about Rust".to_string(),
         limit: 5,
     };
@@ -298,6 +302,7 @@ async fn test_get_assistance_project_isolation() {
         .any(|m| m.content.contains("Python")));
 
     let req2 = AssistRequest {
+        project_id: project2.id,
         prompt: "Tell me about Python".to_string(),
         limit: 5,
     };
