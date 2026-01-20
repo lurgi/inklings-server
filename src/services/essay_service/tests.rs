@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    db, entities::essay, entities::user, models::essay_dto::CreateEssayRequest,
+    db, entities::user, models::essay_dto::CreateEssayRequest,
     models::project_dto::CreateProjectRequest, services::ProjectService,
 };
 use chrono::Utc;
