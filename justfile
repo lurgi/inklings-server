@@ -150,3 +150,6 @@ generate-entity:
     sea-orm-cli generate entity \
         --output-dir ./src/entities \
         --with-serde both
+
+clippy:
+    cargo clippy -- -D warnings
