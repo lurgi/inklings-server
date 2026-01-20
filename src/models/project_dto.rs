@@ -55,3 +55,98 @@ impl From<project::Model> for ProjectResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_project_request_valid() {
+        let request = CreateProjectRequest {
+            name: "개인 블로그 프로젝트".to_string(),
+            description: Some("개인 블로그 작성을 위한 메모와 글 모음".to_string()),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_create_project_request_empty_name() {
+        let request = CreateProjectRequest {
+            name: "".to_string(),
+            description: Some("설명".to_string()),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_project_request_name_too_long() {
+        let request = CreateProjectRequest {
+            name: "a".repeat(201),
+            description: Some("설명".to_string()),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_project_request_description_too_long() {
+        let request = CreateProjectRequest {
+            name: "프로젝트".to_string(),
+            description: Some("a".repeat(1001)),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_project_request_no_description() {
+        let request = CreateProjectRequest {
+            name: "프로젝트".to_string(),
+            description: None,
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_project_request_valid() {
+        let request = UpdateProjectRequest {
+            name: Some("수정된 프로젝트 이름".to_string()),
+            description: Some(Some("수정된 설명".to_string())),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_project_request_empty_name() {
+        let request = UpdateProjectRequest {
+            name: Some("".to_string()),
+            description: Some(Some("설명".to_string())),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_project_request_name_too_long() {
+        let request = UpdateProjectRequest {
+            name: Some("a".repeat(201)),
+            description: Some(Some("설명".to_string())),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_project_request_description_too_long() {
+        let request = UpdateProjectRequest {
+            name: Some("프로젝트".to_string()),
+            description: Some(Some("a".repeat(1001))),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_project_request_no_changes() {
+        let request = UpdateProjectRequest {
+            name: None,
+            description: None,
+        };
+        assert!(request.validate().is_ok());
+    }
+}

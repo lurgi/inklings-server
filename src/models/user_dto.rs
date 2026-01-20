@@ -48,3 +48,107 @@ pub struct LogoutResponse {
     #[schema(example = "Successfully logged out")]
     pub message: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_oauth_login_request_valid() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "user@example.com".to_string(),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_oauth_login_request_empty_provider_user_id() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "".to_string(),
+            email: "user@example.com".to_string(),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_provider_user_id_too_long() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "a".repeat(101),
+            email: "user@example.com".to_string(),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_invalid_email_format() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "invalid-email".to_string(),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_empty_email() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "".to_string(),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_email_too_long() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: format!("{}@example.com", "a".repeat(245)),
+            username: "홍길동".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_empty_username() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "user@example.com".to_string(),
+            username: "".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_username_too_short() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "user@example.com".to_string(),
+            username: "a".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_oauth_login_request_username_too_long() {
+        let request = OAuthLoginRequest {
+            provider: OAuthProvider::Google,
+            provider_user_id: "google_123456789".to_string(),
+            email: "user@example.com".to_string(),
+            username: "a".repeat(51),
+        };
+        assert!(request.validate().is_err());
+    }
+}

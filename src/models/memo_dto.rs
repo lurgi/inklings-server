@@ -47,3 +47,94 @@ impl From<memo::Model> for MemoResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_memo_request_valid() {
+        let request = CreateMemoRequest {
+            project_id: 1,
+            content: "오늘 배운 Rust 비동기 프로그래밍을 정리해야겠다".to_string(),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_create_memo_request_project_id_zero() {
+        let request = CreateMemoRequest {
+            project_id: 0,
+            content: "내용".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_memo_request_project_id_negative() {
+        let request = CreateMemoRequest {
+            project_id: -1,
+            content: "내용".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_memo_request_empty_content() {
+        let request = CreateMemoRequest {
+            project_id: 1,
+            content: "".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_memo_request_content_exactly_max() {
+        let request = CreateMemoRequest {
+            project_id: 1,
+            content: "a".repeat(1000),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_create_memo_request_content_too_long() {
+        let request = CreateMemoRequest {
+            project_id: 1,
+            content: "a".repeat(1001),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_memo_request_valid() {
+        let request = UpdateMemoRequest {
+            content: "수정된 메모 내용".to_string(),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_memo_request_empty_content() {
+        let request = UpdateMemoRequest {
+            content: "".to_string(),
+        };
+        assert!(request.validate().is_err());
+    }
+
+    #[test]
+    fn test_update_memo_request_content_exactly_max() {
+        let request = UpdateMemoRequest {
+            content: "a".repeat(1000),
+        };
+        assert!(request.validate().is_ok());
+    }
+
+    #[test]
+    fn test_update_memo_request_content_too_long() {
+        let request = UpdateMemoRequest {
+            content: "a".repeat(1001),
+        };
+        assert!(request.validate().is_err());
+    }
+}
