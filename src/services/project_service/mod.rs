@@ -25,10 +25,11 @@ impl ProjectService {
         req: CreateProjectRequest,
     ) -> Result<ProjectResponse, ServiceError> {
         // 중복 검사
-        if let Some(_) = self
+        if self
             .project_repo
             .find_by_user_id_and_name(user_id, &req.name)
             .await?
+            .is_some()
         {
             return Err(ServiceError::ProjectNameAlreadyExists);
         }
@@ -84,14 +85,14 @@ impl ProjectService {
 
         // 이름 변경 시 중복 검사
         if let Some(ref new_name) = req.name {
-            if new_name != &project.name {
-                if let Some(_) = self
+            if new_name != &project.name
+                && self
                     .project_repo
                     .find_by_user_id_and_name(user_id, new_name)
                     .await?
-                {
-                    return Err(ServiceError::ProjectNameAlreadyExists);
-                }
+                    .is_some()
+            {
+                return Err(ServiceError::ProjectNameAlreadyExists);
             }
         }
 

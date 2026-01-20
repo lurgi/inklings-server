@@ -4,8 +4,10 @@ use sea_orm::DbErr;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+type MemoStore = Arc<Mutex<HashMap<i32, (i32, Vec<f32>)>>>;
+
 pub struct MockQdrantRepository {
-    memos: Arc<Mutex<HashMap<i32, (i32, Vec<f32>)>>>,
+    memos: MemoStore,
 }
 
 impl MockQdrantRepository {
@@ -16,14 +18,15 @@ impl MockQdrantRepository {
     }
 }
 
+impl Default for MockQdrantRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl QdrantRepo for MockQdrantRepository {
-    async fn upsert_memo(
-        &self,
-        memo_id: i32,
-        user_id: i32,
-        vector: Vec<f32>,
-    ) -> Result<(), DbErr> {
+    async fn upsert_memo(&self, memo_id: i32, user_id: i32, vector: Vec<f32>) -> Result<(), DbErr> {
         self.memos
             .lock()
             .unwrap()

@@ -36,7 +36,7 @@ pub async fn create_essay(
     Json(payload): Json<CreateEssayRequest>,
 ) -> impl IntoResponse {
     match state.essay_service.create_essay(user.id, payload).await {
-        Ok(essay) => (StatusCode::CREATED, Json(EssayResponse::from(essay))).into_response(),
+        Ok(essay) => (StatusCode::CREATED, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -113,7 +113,7 @@ pub async fn get_essay(
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match state.essay_service.get_essay(user.id, id).await {
-        Ok(essay) => (StatusCode::OK, Json(EssayResponse::from(essay))).into_response(),
+        Ok(essay) => (StatusCode::OK, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -142,7 +142,7 @@ pub async fn update_essay(
     Json(payload): Json<UpdateEssayRequest>,
 ) -> impl IntoResponse {
     match state.essay_service.update_essay(user.id, id, payload).await {
-        Ok(essay) => (StatusCode::OK, Json(EssayResponse::from(essay))).into_response(),
+        Ok(essay) => (StatusCode::OK, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }

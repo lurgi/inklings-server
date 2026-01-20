@@ -36,7 +36,7 @@ pub async fn create_memo(
     Json(payload): Json<CreateMemoRequest>,
 ) -> impl IntoResponse {
     match state.memo_service.create_memo(user.id, payload).await {
-        Ok(memo) => (StatusCode::CREATED, Json(MemoResponse::from(memo))).into_response(),
+        Ok(memo) => (StatusCode::CREATED, Json(memo)).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -113,7 +113,7 @@ pub async fn get_memo(
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match state.memo_service.get_memo(user.id, id).await {
-        Ok(memo) => (StatusCode::OK, Json(MemoResponse::from(memo))).into_response(),
+        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -142,7 +142,7 @@ pub async fn update_memo(
     Json(payload): Json<UpdateMemoRequest>,
 ) -> impl IntoResponse {
     match state.memo_service.update_memo(user.id, id, payload).await {
-        Ok(memo) => (StatusCode::OK, Json(MemoResponse::from(memo))).into_response(),
+        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
         Err(e) => e.into_response(),
     }
 }
@@ -194,7 +194,7 @@ pub async fn toggle_pin(
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
     match state.memo_service.toggle_pin(user.id, id).await {
-        Ok(memo) => (StatusCode::OK, Json(MemoResponse::from(memo))).into_response(),
+        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
         Err(e) => e.into_response(),
     }
 }
