@@ -261,3 +261,95 @@ async fn test_essay_project_isolation() {
         .await;
     assert!(matches!(result, Err(ServiceError::Unauthorized)));
 }
+
+#[tokio::test]
+async fn test_update_essay_unauthorized() {
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
+    let service = EssayService::new(db.clone());
+
+    let req = CreateEssayRequest {
+        project_id,
+        title: "User 1's Essay".to_string(),
+        content: "User 1's content".to_string(),
+    };
+
+    let created = service.create_essay(user_id, req).await.unwrap();
+
+    let update_req = UpdateEssayRequest {
+        title: "Hacked Title".to_string(),
+        content: "Hacked content".to_string(),
+    };
+
+    let result = service
+        .update_essay(user_id + 999, created.id, update_req)
+        .await;
+    assert!(matches!(result, Err(ServiceError::Unauthorized)));
+}
+
+#[tokio::test]
+async fn test_delete_essay_unauthorized() {
+    let (db, user_id, project_id) = setup_test_db_with_project().await;
+    let service = EssayService::new(db.clone());
+
+    let req = CreateEssayRequest {
+        project_id,
+        title: "User 1's Essay".to_string(),
+        content: "User 1's content".to_string(),
+    };
+
+    let created = service.create_essay(user_id, req).await.unwrap();
+
+    let result = service.delete_essay(user_id + 999, created.id).await;
+    assert!(matches!(result, Err(ServiceError::Unauthorized)));
+
+    let fetched = service.get_essay(user_id, created.id).await.unwrap();
+    assert_eq!(fetched.id, created.id);
+}
+
+#[tokio::test]
+async fn test_create_essay_with_invalid_project() {
+    let (db, user_id) = setup_test_db().await;
+    let service = EssayService::new(db.clone());
+
+    let invalid_project_id = 99999;
+    let req = CreateEssayRequest {
+        project_id: invalid_project_id,
+        title: "Test Essay".to_string(),
+        content: "Test content".to_string(),
+    };
+
+    let result = service.create_essay(user_id, req).await;
+    assert!(matches!(result, Err(ServiceError::ProjectNotFound)));
+}
+
+#[tokio::test]
+async fn test_get_essay_not_found() {
+    let (db, user_id) = setup_test_db().await;
+    let service = EssayService::new(db.clone());
+
+    let result = service.get_essay(user_id, 99999).await;
+    assert!(matches!(result, Err(ServiceError::EssayNotFound)));
+}
+
+#[tokio::test]
+async fn test_update_essay_not_found() {
+    let (db, user_id) = setup_test_db().await;
+    let service = EssayService::new(db.clone());
+
+    let update_req = UpdateEssayRequest {
+        title: "Updated Title".to_string(),
+        content: "Updated content".to_string(),
+    };
+
+    let result = service.update_essay(user_id, 99999, update_req).await;
+    assert!(matches!(result, Err(ServiceError::EssayNotFound)));
+}
+
+#[tokio::test]
+async fn test_delete_essay_not_found() {
+    let (db, user_id) = setup_test_db().await;
+    let service = EssayService::new(db.clone());
+
+    let result = service.delete_essay(user_id, 99999).await;
+    assert!(matches!(result, Err(ServiceError::EssayNotFound)));
+}
