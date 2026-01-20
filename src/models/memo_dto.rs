@@ -1,21 +1,25 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use validator::Validate;
 
 use crate::entities::memo;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct CreateMemoRequest {
     #[schema(example = 1)]
+    #[validate(range(min = 1, message = "Project ID must be at least 1"))]
     pub project_id: i32,
 
     #[schema(example = "오늘 배운 Rust 비동기 프로그래밍을 정리해야겠다")]
+    #[validate(length(min = 1, max = 1000, message = "Content must be 1-1000 characters"))]
     pub content: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct UpdateMemoRequest {
     #[schema(example = "Rust 비동기 프로그래밍 정리 완료. tokio와 async/await 개념 이해함")]
+    #[validate(length(min = 1, max = 1000, message = "Content must be 1-1000 characters"))]
     pub content: String,
 }
 

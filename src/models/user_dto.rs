@@ -1,17 +1,26 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use validator::Validate;
 
 use crate::entities::{oauth_account::OAuthProvider, user};
 
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
 pub struct OAuthLoginRequest {
     pub provider: OAuthProvider,
     #[schema(example = "google_123456789")]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Provider user ID must be 1-100 characters"
+    ))]
     pub provider_user_id: String,
     #[schema(example = "user@example.com")]
+    #[validate(email(message = "Invalid email format"))]
+    #[validate(length(min = 5, max = 255, message = "Email must be 5-255 characters"))]
     pub email: String,
     #[schema(example = "홍길동")]
+    #[validate(length(min = 2, max = 50, message = "Username must be 2-50 characters"))]
     pub username: String,
 }
 

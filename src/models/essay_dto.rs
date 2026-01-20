@@ -1,27 +1,33 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use validator::Validate;
 
 use crate::entities::essay;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct CreateEssayRequest {
     #[schema(example = 1)]
+    #[validate(range(min = 1, message = "Project ID must be at least 1"))]
     pub project_id: i32,
 
     #[schema(example = "Rust 비동기 프로그래밍에 대한 고찰")]
+    #[validate(length(min = 1, max = 200, message = "Title must be 1-200 characters"))]
     pub title: String,
 
     #[schema(example = "오늘 배운 Rust 비동기 프로그래밍에 대해 자세히 정리해보자")]
+    #[validate(length(min = 1, max = 10000, message = "Content must be 1-10000 characters"))]
     pub content: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct UpdateEssayRequest {
     #[schema(example = "Rust 비동기 프로그래밍 심층 분석")]
+    #[validate(length(min = 1, max = 200, message = "Title must be 1-200 characters"))]
     pub title: String,
 
     #[schema(example = "Rust 비동기 프로그래밍에 대해 더 자세히 알아보자")]
+    #[validate(length(min = 1, max = 10000, message = "Content must be 1-10000 characters"))]
     pub content: String,
 }
 

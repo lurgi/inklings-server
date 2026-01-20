@@ -1,24 +1,29 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use validator::Validate;
 
 use crate::entities::project;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct CreateProjectRequest {
     #[schema(example = "개인 블로그 프로젝트")]
+    #[validate(length(min = 1, max = 200, message = "Name must be 1-200 characters"))]
     pub name: String,
 
     #[schema(example = "개인 블로그 작성을 위한 메모와 글 모음")]
+    #[validate(length(max = 1000, message = "Description must not exceed 1000 characters"))]
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, ToSchema, Validate)]
 pub struct UpdateProjectRequest {
     #[schema(example = "수정된 프로젝트 이름")]
+    #[validate(length(min = 1, max = 200, message = "Name must be 1-200 characters"))]
     pub name: Option<String>,
 
     #[schema(example = "수정된 설명")]
+    #[validate(length(max = 1000, message = "Description must not exceed 1000 characters"))]
     pub description: Option<Option<String>>,
 }
 
