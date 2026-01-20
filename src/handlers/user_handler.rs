@@ -1,5 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use tower_cookies::{Cookie, Cookies};
+use validator::Validate;
 
 use super::AppState;
 use crate::errors::ErrorResponse;
@@ -22,6 +23,14 @@ pub async fn oauth_login(
     cookies: Cookies,
     Json(payload): Json<OAuthLoginRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.user_service.oauth_login(payload).await {
         Ok((auth_response, access_token, refresh_token)) => {
             let is_production = std::env::var("ENV")

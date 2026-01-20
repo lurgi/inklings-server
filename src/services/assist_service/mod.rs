@@ -5,12 +5,13 @@ use crate::{
     clients::{Embedder, TextGenerator},
     errors::ServiceError,
     models::assist_dto::{AssistRequest, AssistResponse, SimilarMemo},
-    repositories::{MemoRepository, QdrantRepo},
+    repositories::{MemoRepository, ProjectRepository, QdrantRepo},
 };
 
 #[derive(Clone)]
 pub struct AssistService {
     memo_repo: MemoRepository,
+    project_repo: ProjectRepository,
     qdrant_repo: Arc<dyn QdrantRepo>,
     embedder: Arc<dyn Embedder>,
     text_generator: Arc<dyn TextGenerator>,
@@ -24,7 +25,8 @@ impl AssistService {
         text_generator: Arc<dyn TextGenerator>,
     ) -> Self {
         Self {
-            memo_repo: MemoRepository::new(db),
+            memo_repo: MemoRepository::new(db.clone()),
+            project_repo: ProjectRepository::new(db),
             qdrant_repo,
             embedder,
             text_generator,
@@ -34,13 +36,25 @@ impl AssistService {
     pub async fn get_assistance(
         &self,
         user_id: i32,
+        project_id: i32,
         req: AssistRequest,
     ) -> Result<AssistResponse, ServiceError> {
+        // Project 권한 검증
+        let project = self
+            .project_repo
+            .find_by_id(project_id)
+            .await?
+            .ok_or(ServiceError::ProjectNotFound)?;
+
+        if project.user_id != user_id {
+            return Err(ServiceError::Unauthorized);
+        }
+
         let query_vector = self.embedder.embed(&req.prompt).await?;
 
         let similar_memo_ids = self
             .qdrant_repo
-            .search_similar(user_id, query_vector, req.limit)
+            .search_similar(project_id, query_vector, req.limit)
             .await?;
 
         let mut similar_memos = Vec::new();
@@ -48,7 +62,7 @@ impl AssistService {
 
         for memo_id in similar_memo_ids {
             if let Some(memo) = self.memo_repo.find_by_id(memo_id).await? {
-                if memo.user_id == user_id {
+                if memo.project_id == project_id {
                     context.push(memo.content.clone());
                     similar_memos.push(SimilarMemo {
                         id: memo.id,
@@ -59,10 +73,7 @@ impl AssistService {
             }
         }
 
-        let suggestion = self
-            .text_generator
-            .generate(&req.prompt, context)
-            .await?;
+        let suggestion = self.text_generator.generate(&req.prompt, context).await?;
 
         Ok(AssistResponse {
             suggestion,

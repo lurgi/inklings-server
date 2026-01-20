@@ -9,20 +9,20 @@ use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::errors::ErrorResponse;
-use crate::models::memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
+use crate::models::essay_dto::{CreateEssayRequest, EssayResponse, UpdateEssayRequest};
 
 #[derive(Debug, Deserialize)]
-pub struct ListMemosParams {
+pub struct ListEssaysParams {
     pub project_id: Option<i32>,
 }
 
 #[utoipa::path(
     post,
-    path = "/api/memos",
-    tag = "Memos",
-    request_body = CreateMemoRequest,
+    path = "/api/essays",
+    tag = "Essays",
+    request_body = CreateEssayRequest,
     responses(
-        (status = 201, description = "메모 생성 성공", body = MemoResponse),
+        (status = 201, description = "에세이 생성 성공", body = EssayResponse),
         (status = 400, description = "잘못된 요청", body = ErrorResponse),
         (status = 401, description = "인증 실패", body = ErrorResponse),
         (status = 403, description = "권한 없음", body = ErrorResponse),
@@ -31,10 +31,10 @@ pub struct ListMemosParams {
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn create_memo(
+pub async fn create_essay(
     State(state): State<AppState>,
     user: AuthenticatedUser,
-    Json(payload): Json<CreateMemoRequest>,
+    Json(payload): Json<CreateEssayRequest>,
 ) -> impl IntoResponse {
     if let Err(e) = payload.validate() {
         return (
@@ -44,21 +44,21 @@ pub async fn create_memo(
             .into_response();
     }
 
-    match state.memo_service.create_memo(user.id, payload).await {
-        Ok(memo) => (StatusCode::CREATED, Json(memo)).into_response(),
+    match state.essay_service.create_essay(user.id, payload).await {
+        Ok(essay) => (StatusCode::CREATED, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 #[utoipa::path(
     get,
-    path = "/api/memos",
-    tag = "Memos",
+    path = "/api/essays",
+    tag = "Essays",
     params(
-        ("project_id" = Option<i32>, Query, description = "프로젝트 ID (없으면 사용자의 모든 프로젝트의 메모 조회)")
+        ("project_id" = Option<i32>, Query, description = "프로젝트 ID (없으면 사용자의 모든 프로젝트의 에세이 조회)")
     ),
     responses(
-        (status = 200, description = "메모 목록 조회 성공", body = Vec<MemoResponse>),
+        (status = 200, description = "에세이 목록 조회 성공", body = Vec<EssayResponse>),
         (status = 401, description = "인증 실패", body = ErrorResponse),
         (status = 403, description = "권한 없음", body = ErrorResponse),
         (status = 404, description = "프로젝트를 찾을 수 없음", body = ErrorResponse),
@@ -66,35 +66,35 @@ pub async fn create_memo(
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn list_memos(
+pub async fn list_essays(
     State(state): State<AppState>,
     user: AuthenticatedUser,
-    Query(params): Query<ListMemosParams>,
+    Query(params): Query<ListEssaysParams>,
 ) -> impl IntoResponse {
     if let Some(project_id) = params.project_id {
-        let memos = state
-            .memo_service
-            .list_memos_by_project(user.id, project_id)
+        let essays = state
+            .essay_service
+            .list_essays_by_project(user.id, project_id)
             .await;
-        match memos {
-            Ok(memos) => (StatusCode::OK, Json(memos)).into_response(),
+        match essays {
+            Ok(essays) => (StatusCode::OK, Json(essays)).into_response(),
             Err(e) => e.into_response(),
         }
     } else {
         let projects = state.project_service.list_projects(user.id).await;
         match projects {
             Ok(project_list) => {
-                let mut all_memos = Vec::new();
+                let mut all_essays = Vec::new();
                 for project in project_list {
-                    if let Ok(memos) = state
-                        .memo_service
-                        .list_memos_by_project(user.id, project.id)
+                    if let Ok(essays) = state
+                        .essay_service
+                        .list_essays_by_project(user.id, project.id)
                         .await
                     {
-                        all_memos.extend(memos);
+                        all_essays.extend(essays);
                     }
                 }
-                (StatusCode::OK, Json(all_memos)).into_response()
+                (StatusCode::OK, Json(all_essays)).into_response()
             }
             Err(e) => e.into_response(),
         }
@@ -103,52 +103,52 @@ pub async fn list_memos(
 
 #[utoipa::path(
     get,
-    path = "/api/memos/{id}",
-    tag = "Memos",
+    path = "/api/essays/{id}",
+    tag = "Essays",
     params(
-        ("id" = i32, Path, description = "메모 ID")
+        ("id" = i32, Path, description = "에세이 ID")
     ),
     responses(
-        (status = 200, description = "메모 조회 성공", body = MemoResponse),
+        (status = 200, description = "에세이 조회 성공", body = EssayResponse),
         (status = 401, description = "인증 실패", body = ErrorResponse),
-        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 404, description = "에세이를 찾을 수 없음", body = ErrorResponse),
         (status = 500, description = "서버 에러", body = ErrorResponse)
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn get_memo(
+pub async fn get_essay(
     State(state): State<AppState>,
     user: AuthenticatedUser,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match state.memo_service.get_memo(user.id, id).await {
-        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
+    match state.essay_service.get_essay(user.id, id).await {
+        Ok(essay) => (StatusCode::OK, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 #[utoipa::path(
     put,
-    path = "/api/memos/{id}",
-    tag = "Memos",
+    path = "/api/essays/{id}",
+    tag = "Essays",
     params(
-        ("id" = i32, Path, description = "메모 ID")
+        ("id" = i32, Path, description = "에세이 ID")
     ),
-    request_body = UpdateMemoRequest,
+    request_body = UpdateEssayRequest,
     responses(
-        (status = 200, description = "메모 수정 성공", body = MemoResponse),
+        (status = 200, description = "에세이 수정 성공", body = EssayResponse),
         (status = 400, description = "잘못된 요청", body = ErrorResponse),
         (status = 401, description = "인증 실패", body = ErrorResponse),
-        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 404, description = "에세이를 찾을 수 없음", body = ErrorResponse),
         (status = 500, description = "서버 에러", body = ErrorResponse)
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn update_memo(
+pub async fn update_essay(
     State(state): State<AppState>,
     user: AuthenticatedUser,
     Path(id): Path<i32>,
-    Json(payload): Json<UpdateMemoRequest>,
+    Json(payload): Json<UpdateEssayRequest>,
 ) -> impl IntoResponse {
     if let Err(e) = payload.validate() {
         return (
@@ -158,60 +158,34 @@ pub async fn update_memo(
             .into_response();
     }
 
-    match state.memo_service.update_memo(user.id, id, payload).await {
-        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
+    match state.essay_service.update_essay(user.id, id, payload).await {
+        Ok(essay) => (StatusCode::OK, Json(essay)).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 #[utoipa::path(
     delete,
-    path = "/api/memos/{id}",
-    tag = "Memos",
+    path = "/api/essays/{id}",
+    tag = "Essays",
     params(
-        ("id" = i32, Path, description = "메모 ID")
+        ("id" = i32, Path, description = "에세이 ID")
     ),
     responses(
-        (status = 204, description = "메모 삭제 성공"),
+        (status = 204, description = "에세이 삭제 성공"),
         (status = 401, description = "인증 실패", body = ErrorResponse),
-        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
+        (status = 404, description = "에세이를 찾을 수 없음", body = ErrorResponse),
         (status = 500, description = "서버 에러", body = ErrorResponse)
     ),
     security(("bearer_auth" = []))
 )]
-pub async fn delete_memo(
+pub async fn delete_essay(
     State(state): State<AppState>,
     user: AuthenticatedUser,
     Path(id): Path<i32>,
 ) -> impl IntoResponse {
-    match state.memo_service.delete_memo(user.id, id).await {
+    match state.essay_service.delete_essay(user.id, id).await {
         Ok(()) => (StatusCode::NO_CONTENT).into_response(),
-        Err(e) => e.into_response(),
-    }
-}
-
-#[utoipa::path(
-    patch,
-    path = "/api/memos/{id}/pin",
-    tag = "Memos",
-    params(
-        ("id" = i32, Path, description = "메모 ID")
-    ),
-    responses(
-        (status = 200, description = "메모 고정 토글 성공", body = MemoResponse),
-        (status = 401, description = "인증 실패", body = ErrorResponse),
-        (status = 404, description = "메모를 찾을 수 없음", body = ErrorResponse),
-        (status = 500, description = "서버 에러", body = ErrorResponse)
-    ),
-    security(("bearer_auth" = []))
-)]
-pub async fn toggle_pin(
-    State(state): State<AppState>,
-    user: AuthenticatedUser,
-    Path(id): Path<i32>,
-) -> impl IntoResponse {
-    match state.memo_service.toggle_pin(user.id, id).await {
-        Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
         Err(e) => e.into_response(),
     }
 }

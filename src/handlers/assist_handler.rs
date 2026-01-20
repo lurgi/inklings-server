@@ -1,8 +1,9 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
-use crate::models::assist_dto::{AssistRequest, AssistResponse};
 use crate::errors::ErrorResponse;
+use crate::models::assist_dto::{AssistRequest, AssistResponse};
 
 #[utoipa::path(
     post,
@@ -22,7 +23,19 @@ pub async fn assist(
     user: AuthenticatedUser,
     Json(payload): Json<AssistRequest>,
 ) -> impl IntoResponse {
-    match state.assist_service.get_assistance(user.id, payload).await {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
+    match state
+        .assist_service
+        .get_assistance(user.id, payload.project_id, payload)
+        .await
+    {
         Ok(response) => (StatusCode::OK, Json(response)).into_response(),
         Err(e) => e.into_response(),
     }

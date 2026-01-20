@@ -2,7 +2,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "memos")]
+#[sea_orm(table_name = "essays")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
@@ -10,8 +10,11 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub project_id: i32,
 
+    pub title: String,
+
     pub content: String,
 
+    #[sea_orm(indexed)]
     pub is_pinned: bool,
 
     pub created_at: DateTime,
@@ -24,7 +27,9 @@ pub enum Relation {
     #[sea_orm(
         belongs_to = "super::project::Entity",
         from = "Column::ProjectId",
-        to = "super::project::Column::Id"
+        to = "super::project::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
     )]
     Project,
 }

@@ -13,8 +13,17 @@ pub enum ServiceError {
     #[error("Memo not found")]
     MemoNotFound,
 
+    #[error("Essay not found")]
+    EssayNotFound,
+
     #[error("User not found")]
     UserNotFound,
+
+    #[error("Project not found")]
+    ProjectNotFound,
+
+    #[error("Project name already exists")]
+    ProjectNameAlreadyExists,
 
     #[error("Unauthorized: you don't have permission to access this memo")]
     Unauthorized,
@@ -48,7 +57,10 @@ impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             Self::MemoNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            Self::EssayNotFound => (StatusCode::NOT_FOUND, self.to_string()),
             Self::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            Self::ProjectNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            Self::ProjectNameAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
             Self::Unauthorized => (StatusCode::FORBIDDEN, self.to_string()),
             Self::GeminiApi(_) => (
                 StatusCode::BAD_GATEWAY,

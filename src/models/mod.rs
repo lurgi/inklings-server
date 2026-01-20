@@ -1,7 +1,11 @@
 pub mod assist_dto;
+pub mod essay_dto;
 pub mod memo_dto;
+pub mod project_dto;
 pub mod user_dto;
 
 pub use assist_dto::{AssistRequest, AssistResponse, SimilarMemo};
+pub use essay_dto::{CreateEssayRequest, EssayResponse, UpdateEssayRequest};
 pub use memo_dto::{CreateMemoRequest, MemoResponse, UpdateMemoRequest};
+pub use project_dto::{CreateProjectRequest, ProjectResponse, UpdateProjectRequest};
 pub use user_dto::{AuthResponse, OAuthLoginRequest, UserResponse};

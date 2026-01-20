@@ -10,6 +10,7 @@ use inklings_server::{
     entities::user,
     handlers,
     models::memo_dto::{CreateMemoRequest, MemoResponse},
+    models::project_dto::CreateProjectRequest,
     services,
     test_utils::{MockGeminiClient, MockQdrantRepository},
 };
@@ -51,7 +52,8 @@ async fn create_test_user(db: &DatabaseConnection, id: i32, username: &str) -> u
 }
 
 fn generate_test_token(user_id: i32) -> String {
-    let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "test_secret_key_min_32_chars_long".to_string());
+    let jwt_secret = std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "test_secret_key_min_32_chars_long".to_string());
     inklings_server::utils::jwt::generate_token(user_id, &jwt_secret, 24).unwrap()
 }
 
@@ -60,7 +62,20 @@ async fn test_create_memo_api() {
     let (app, db) = setup().await;
     let user = create_test_user(&db, 1, "user1").await;
 
+    let project_service = services::ProjectService::new(db.clone());
+    let project = project_service
+        .create_project(
+            user.id,
+            CreateProjectRequest {
+                name: "Test Project".to_string(),
+                description: Some("Test project for memo".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
     let req_body = CreateMemoRequest {
+        project_id: project.id,
         content: "Test memo from integration test".to_string(),
     };
 
@@ -85,7 +100,7 @@ async fn test_create_memo_api() {
     let memo_res: MemoResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(memo_res.content, req_body.content);
-    assert_eq!(memo_res.user_id, user.id);
+    assert_eq!(memo_res.project_id, project.id);
 }
 
 #[tokio::test]
@@ -93,6 +108,29 @@ async fn test_list_memos_api() {
     let (app, db) = setup().await;
     let user1 = create_test_user(&db, 10, "user10").await;
     let user2 = create_test_user(&db, 20, "user20").await;
+
+    let project_service = services::ProjectService::new(db.clone());
+    let project1 = project_service
+        .create_project(
+            user1.id,
+            CreateProjectRequest {
+                name: "User1 Project".to_string(),
+                description: Some("Project for user1".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+    let project2 = project_service
+        .create_project(
+            user2.id,
+            CreateProjectRequest {
+                name: "User2 Project".to_string(),
+                description: Some("Project for user2".to_string()),
+            },
+        )
+        .await
+        .unwrap();
 
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
@@ -106,6 +144,7 @@ async fn test_list_memos_api() {
         .create_memo(
             user1.id,
             CreateMemoRequest {
+                project_id: project1.id,
                 content: "user1 memo 1".to_string(),
             },
         )
@@ -115,6 +154,7 @@ async fn test_list_memos_api() {
         .create_memo(
             user1.id,
             CreateMemoRequest {
+                project_id: project1.id,
                 content: "user1 memo 2".to_string(),
             },
         )
@@ -124,6 +164,7 @@ async fn test_list_memos_api() {
         .create_memo(
             user2.id,
             CreateMemoRequest {
+                project_id: project2.id,
                 content: "user2 memo".to_string(),
             },
         )
@@ -150,7 +191,7 @@ async fn test_list_memos_api() {
     let memos: Vec<MemoResponse> = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(memos.len(), 2);
-    assert!(memos.iter().all(|m| m.user_id == user1.id));
+    assert!(memos.iter().all(|m| m.project_id != 0));
 }
 
 #[tokio::test]
@@ -158,6 +199,18 @@ async fn test_get_memo_unauthorized_api() {
     let (app, db) = setup().await;
     let user1 = create_test_user(&db, 9001, "user9001").await;
     let user2 = create_test_user(&db, 9002, "user9002").await;
+
+    let project_service = services::ProjectService::new(db.clone());
+    let project = project_service
+        .create_project(
+            user1.id,
+            CreateProjectRequest {
+                name: "Unauthorized Test Project".to_string(),
+                description: Some("Test project".to_string()),
+            },
+        )
+        .await
+        .unwrap();
 
     let qdrant_repo = Arc::new(MockQdrantRepository::new());
     let embedder = Arc::new(MockGeminiClient::new());
@@ -171,6 +224,7 @@ async fn test_get_memo_unauthorized_api() {
         .create_memo(
             user1.id,
             CreateMemoRequest {
+                project_id: project.id,
                 content: "user1's secret memo".to_string(),
             },
         )

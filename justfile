@@ -144,3 +144,12 @@ clean:
     cargo clean
     -docker stop inklings_test_postgres
     -docker rm inklings_test_postgres
+
+# entity 자동생성
+generate-entity:
+    sea-orm-cli generate entity \
+        --output-dir ./src/entities \
+        --with-serde both
+
+clippy:
+    cargo clippy -- -D warnings

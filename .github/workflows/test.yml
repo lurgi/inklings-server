@@ -39,9 +39,21 @@ jobs:
         env:
           DATABASE_URL: postgres://test_user:test_pass@localhost:5432/test_db
         run: |
-          echo "🔄 Running database migrations..."
-          cargo run -p migration up
-          echo "✅ Migrations completed"
+          echo "🔄 Running database migrations with retry..."
+
+          # 최대 5번 재시도
+          for i in {1..5}; do
+            if cargo run -p migration up; then
+              echo "✅ Migrations completed successfully on attempt $i"
+              exit 0
+            fi
+
+            echo "⚠️ Migration failed on attempt $i. Retrying in 2 seconds..."
+            sleep 2
+          done
+
+          echo "❌ Migration failed after 5 attempts."
+          exit 1
 
       - name: Run tests
         env:
@@ -93,13 +105,26 @@ jobs:
 
       - name: Run database migrations
         run: |
-          echo "🔄 Running database migrations..."
-          docker run --rm \
-            --network host \
-            -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
-            inklings-server:test \
-            ./migration up
-          echo "✅ Migrations completed"
+          echo "🔄 Running database migrations with retry..."
+
+          # 최대 5번 재시도
+          for i in {1..5}; do
+            if docker run --rm \
+              --network host \
+              -e DATABASE_URL=postgres://test_user:test_pass@localhost:5432/test_db \
+              inklings-server:test \
+              ./migration up; then
+
+              echo "✅ Migrations completed successfully on attempt $i"
+              exit 0
+            fi
+
+            echo "⚠️ Migration failed on attempt $i. Retrying in 2 seconds..."
+            sleep 2
+          done
+
+          echo "❌ Migration failed after 5 attempts."
+          exit 1
 
       - name: Start Qdrant for integration test
         run: |
