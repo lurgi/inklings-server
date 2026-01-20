@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::errors::ErrorResponse;
@@ -35,6 +36,14 @@ pub async fn create_essay(
     user: AuthenticatedUser,
     Json(payload): Json<CreateEssayRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.essay_service.create_essay(user.id, payload).await {
         Ok(essay) => (StatusCode::CREATED, Json(essay)).into_response(),
         Err(e) => e.into_response(),
@@ -141,6 +150,14 @@ pub async fn update_essay(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateEssayRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.essay_service.update_essay(user.id, id, payload).await {
         Ok(essay) => (StatusCode::OK, Json(essay)).into_response(),
         Err(e) => e.into_response(),

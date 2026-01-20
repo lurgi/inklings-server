@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::errors::ErrorResponse;
@@ -28,6 +29,14 @@ pub async fn create_project(
     user: AuthenticatedUser,
     Json(payload): Json<CreateProjectRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.project_service.create_project(user.id, payload).await {
         Ok(project) => (StatusCode::CREATED, Json(project)).into_response(),
         Err(e) => e.into_response(),
@@ -107,6 +116,14 @@ pub async fn update_project(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProjectRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state
         .project_service
         .update_project(user.id, id, payload)

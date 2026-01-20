@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use validator::Validate;
 
 use super::{auth::AuthenticatedUser, AppState};
 use crate::errors::ErrorResponse;
@@ -35,6 +36,14 @@ pub async fn create_memo(
     user: AuthenticatedUser,
     Json(payload): Json<CreateMemoRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.memo_service.create_memo(user.id, payload).await {
         Ok(memo) => (StatusCode::CREATED, Json(memo)).into_response(),
         Err(e) => e.into_response(),
@@ -141,6 +150,14 @@ pub async fn update_memo(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateMemoRequest>,
 ) -> impl IntoResponse {
+    if let Err(e) = payload.validate() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": format!("Validation failed: {}", e) })),
+        )
+            .into_response();
+    }
+
     match state.memo_service.update_memo(user.id, id, payload).await {
         Ok(memo) => (StatusCode::OK, Json(memo)).into_response(),
         Err(e) => e.into_response(),
