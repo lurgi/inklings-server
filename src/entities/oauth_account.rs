@@ -19,8 +19,10 @@ pub struct Model {
     pub updated_at: DateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema)]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
+#[derive(
+    Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize, ToSchema,
+)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "oauth_provider")]
 pub enum OAuthProvider {
     #[sea_orm(string_value = "google")]
     Google,

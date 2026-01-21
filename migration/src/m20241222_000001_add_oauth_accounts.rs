@@ -1,4 +1,5 @@
 use sea_orm_migration::prelude::*;
+use sea_orm_migration::sea_query::extension::postgres::Type;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -16,7 +17,17 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 2. oauth_accounts 테이블 생성
+        // 2. oauth_provider PostgreSQL enum 타입 생성
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum("oauth_provider")
+                    .values(["google", "kakao", "naver"])
+                    .to_owned(),
+            )
+            .await?;
+
+        // 3. oauth_accounts 테이블 생성
         manager
             .create_table(
                 Table::create()
@@ -32,7 +43,14 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(OAuthAccounts::UserId).integer().not_null())
                     .col(
                         ColumnDef::new(OAuthAccounts::Provider)
-                            .string_len(20)
+                            .enumeration(
+                                OAuthProvider::Enum,
+                                [
+                                    OAuthProvider::Google,
+                                    OAuthProvider::Kakao,
+                                    OAuthProvider::Naver,
+                                ],
+                            )
                             .not_null(),
                     )
                     .col(
@@ -64,7 +82,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 3. oauth_accounts 테이블 인덱스 생성
+        // 4. oauth_accounts 테이블 인덱스 생성
         manager
             .create_index(
                 Index::create()
@@ -75,7 +93,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 4. provider + provider_user_id 복합 유니크 인덱스
+        // 5. provider + provider_user_id 복합 유니크 인덱스
         manager
             .create_index(
                 Index::create()
@@ -127,4 +145,16 @@ enum OAuthAccounts {
     ProviderUserId,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum OAuthProvider {
+    #[sea_orm(iden = "oauth_provider")]
+    Enum,
+    #[sea_orm(iden = "google")]
+    Google,
+    #[sea_orm(iden = "kakao")]
+    Kakao,
+    #[sea_orm(iden = "naver")]
+    Naver,
 }
